@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useHeaderHeight } from '@react-navigation/elements';
+import { loginAccount, registerAccount } from '../services/auth';
 
 function AuthForm({ navigation, isRegister }) {
   const headerHeight = useHeaderHeight();
@@ -19,11 +20,14 @@ function AuthForm({ navigation, isRegister }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [loading, setLoading] = useState(false);
 
   const title = isRegister ? 'Tạo tài khoản' : 'Đăng nhập';
 
-  function handleSubmit() {
-    const cleanEmail = email.trim();
+  async function handleSubmit() {
+    if (loading) return;
+
+    const cleanEmail = email.trim().toLowerCase();
 
     if (
       !cleanEmail ||
@@ -37,7 +41,7 @@ function AuthForm({ navigation, isRegister }) {
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
       Alert.alert('Email chưa hợp lệ', 'Ví dụ: ban@example.com');
       return;
-    }
+   }
 
     if (isRegister && password.length < 8) {
       Alert.alert('Mật khẩu quá ngắn', 'Vui lòng dùng ít nhất 8 ký tự.');
@@ -49,12 +53,39 @@ function AuthForm({ navigation, isRegister }) {
       return;
     }
 
-    Alert.alert(
-      'Kiểm tra form thành công',
-      isRegister
-        ? 'Dữ liệu hợp lệ. Tài khoản chưa được tạo vì chưa kết nối backend.'
-        : 'Dữ liệu hợp lệ. Chưa xác thực tài khoản vì chưa kết nối backend.'
-    );
+    setLoading(true);
+
+    try {
+      if (isRegister) {
+        await registerAccount(name.trim(), cleanEmail, password);
+
+        Alert.alert(
+          'Đăng ký thành công',
+          'Bạn có thể đăng nhập bằng tài khoản vừa tạo.',
+          [
+            {
+              text: 'Đăng nhập',
+              onPress: () => navigation.replace('Login'),
+            },
+          ],
+          { cancelable: false }
+        );
+      } else {
+        await loginAccount(cleanEmail, password);
+
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'Home' }],
+        });
+      }
+    } catch (error) {
+      Alert.alert(
+        isRegister ? 'Đăng ký chưa thành công' : 'Đăng nhập chưa thành công',
+        error.message
+      );
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -154,17 +185,21 @@ function AuthForm({ navigation, isRegister }) {
 
           <Pressable
             accessibilityRole="button"
+            disabled={loading}
             onPress={handleSubmit}
             style={({ pressed }) => [
               styles.submitButton,
-              pressed && styles.pressed,
+              (pressed || loading) && styles.pressed,
             ]}
           >
-            <Text style={styles.submitText}>{title}</Text>
+            <Text style={styles.submitText}>
+              {loading ? 'Đang xử lý...' : title}
+            </Text>
           </Pressable>
 
           <Pressable
             accessibilityRole="button"
+            disabled={loading}
             style={styles.linkButton}
             onPress={() =>
               navigation.replace(isRegister ? 'Login' : 'Register')

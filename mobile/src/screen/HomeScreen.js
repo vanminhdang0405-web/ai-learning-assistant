@@ -7,6 +7,8 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useEffect, useState } from 'react';
+import { getCurrentUser, logoutAccount } from '../services/auth';
 
 // Component dùng chung để hiển thị một mục chức năng.
 function FeatureCard({ number, title, description, onPress }) {
@@ -32,6 +34,54 @@ function FeatureCard({ number, title, description, onPress }) {
 }
 
 export default function HomeScreen({ navigation }) {
+  const [user, setUser] = useState(null);
+  const [checkingAccount, setCheckingAccount] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadAccount() {
+      try {
+        const account = await getCurrentUser();
+
+        if (active) {
+          setUser(account);
+      }
+      } catch (error) {
+        if (active) {
+          Alert.alert('Chưa tải được tài khoản', error.message);
+        }
+      } finally {
+        if (active) {
+          setCheckingAccount(false);
+        }
+      }
+    } 
+
+    loadAccount();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  async function handleLogout() {
+    setCheckingAccount(true);
+
+    try {
+      await logoutAccount();
+
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'Login' }],
+      });
+    } catch (error) {
+      Alert.alert('Chưa đăng xuất được', error.message);
+    } finally {
+      setCheckingAccount(false);
+    }
+  }
+
   function showFeature(title) {
     Alert.alert(
       title,
@@ -44,7 +94,9 @@ export default function HomeScreen({ navigation }) {
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.header}>
           <Text style={styles.brand}>AI LEARNING ASSISTANT</Text>
-          <Text style={styles.heading}>Hôm nay bạn muốn học gì?</Text>
+          <Text style={styles.heading}>
+            {user ? `Xin chào, ${user.name}!` : 'Hôm nay bạn muốn học gì?'}
+          </Text>
           <Text style={styles.subtitle}>
             Quản lý tài liệu, tìm hiểu kiến thức và luyện giải bài tập.
           </Text>
@@ -91,13 +143,32 @@ export default function HomeScreen({ navigation }) {
           onPress={() => showFeature('Lịch sử học tập')}
         />
 
-        <Pressable
-        accessibilityRole="button"
-        onPress={() => navigation.navigate('Login')}
-        style={styles.accountButton}
-        >
-        <Text style={styles.accountText}>Đăng nhập / Đăng ký</Text>
-        </Pressable>
+        <View>
+          {user && (
+            <Text style={[styles.subtitle, { textAlign: 'center' }]}>
+              {user.email}
+            </Text>
+          )}
+
+          <Pressable
+            accessibilityRole="button"
+            disabled={checkingAccount}
+            onPress={
+              user
+                ? handleLogout
+                : () => navigation.navigate('Login')
+            }
+            style={styles.accountButton}
+          >
+            <Text style={styles.accountText}>
+              {checkingAccount
+                ? 'Đang kiểm tra tài khoản...'
+                : user
+                  ? 'Đăng xuất'
+                  : 'Đăng nhập / Đăng ký'}
+            </Text>
+          </Pressable>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
