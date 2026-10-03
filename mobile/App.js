@@ -8,6 +8,7 @@ import {
   LoginScreen,
   RegisterScreen,
 } from './src/screen/AuthScreen';
+import ProfileScreen from './src/screen/ProfileScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -42,6 +43,12 @@ export default function App() {
             name="Register"
             component={RegisterScreen}
             options={{ title: 'Đăng ký' }}
+          />
+
+          <Stack.Screen
+            name="Profile"
+            component={ProfileScreen}
+              options={{ title: 'Hồ sơ cá nhân' }}
           />
         </Stack.Navigator>
       </NavigationContainer>

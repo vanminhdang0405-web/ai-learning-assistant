@@ -1,7 +1,7 @@
 import * as SecureStore from 'expo-secure-store';
 
 // Thay bằng IPv4 của máy tính đang chạy backend.
-const API_URL = 'http://10.7.132.217:3000/api';
+const API_URL = 'http://10.7.148.69:3000/api';
 const TOKEN_KEY = 'auth_token';
 
 async function request(path, { method = 'GET', body, token } = {}) {
@@ -84,6 +84,32 @@ export async function getCurrentUser() {
     if (error.status === 401) {
       await SecureStore.deleteItemAsync(TOKEN_KEY);
       return null;
+    }
+
+    throw error;
+  }
+}
+
+export async function updateProfile(name) {
+  const token = await SecureStore.getItemAsync(TOKEN_KEY);
+
+  if (!token) {
+    const error = new Error('Bạn cần đăng nhập lại.');
+    error.status = 401;
+    throw error;
+  }
+
+  try {
+    const data = await request('/auth/me', {
+      method: 'PATCH',
+      token,
+      body: { name },
+    });
+
+    return data.user;
+  } catch (error) {
+    if (error.status === 401) {
+      await SecureStore.deleteItemAsync(TOKEN_KEY);
     }
 
     throw error;

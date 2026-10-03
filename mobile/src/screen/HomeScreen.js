@@ -150,6 +150,18 @@ export default function HomeScreen({ navigation }) {
             </Text>
           )}
 
+          {user && (
+            <Pressable
+              style={styles.accountButton}
+              disabled={checkingAccount}
+              onPress={() => navigation.navigate('Profile')}
+            >
+            <Text style={styles.accountText}>
+                Hồ sơ cá nhân
+            </Text>
+          </Pressable>
+          )}
+
           <Pressable
             accessibilityRole="button"
             disabled={checkingAccount}

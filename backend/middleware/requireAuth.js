@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const { JWT_SECRET } = require('../config');
+const db = require('../db');
 
 function requireAuth(req, res, next) {
   const authorization = req.get('Authorization') ?? '';
@@ -23,6 +24,15 @@ function requireAuth(req, res, next) {
       return res.status(401).json({
         success: false,
         message: 'Token không hợp lệ.',
+      });
+    }
+
+    const user = db.prepare('SELECT token_version FROM users WHERE id = ?').get(userId);
+    if (!user || !Number.isSafeInteger(payload.tokenVersion)
+      || payload.tokenVersion !== user.token_version) {
+      return res.status(401).json({
+        success: false,
+        message: 'Phiên đăng nhập đã hết hiệu lực. Vui lòng đăng nhập lại.',
       });
     }
 

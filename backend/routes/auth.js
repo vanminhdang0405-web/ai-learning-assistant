@@ -6,6 +6,7 @@ const { JWT_SECRET } = require('../config');
 const requireAuth = require('../middleware/requireAuth');
 
 const router = express.Router();
+router.use(require('./passwordReset'));
 
 router.post('/register', async (req, res) => {
   try {
@@ -82,7 +83,7 @@ router.post('/register', async (req, res) => {
       });
     }
 
-    console.error('Lỗi đăng nhập:', error.stack);
+    console.error('Lỗi đăng ký:', error.code ?? error.name);
 
     return res.status(500).json({
       success: false,
@@ -120,7 +121,7 @@ router.post('/login', async (req, res) => {
     }
 
     const user = db.prepare(`
-      SELECT id, name, email, password_hash
+      SELECT id, name, email, password_hash, token_version
       FROM users
       WHERE email = ?
     `).get(cleanEmail);
@@ -138,7 +139,14 @@ router.post('/login', async (req, res) => {
       user.password_hash
     );
 
-    if (!passwordMatches) {
+    // Kiểm tra lại sau await để tránh cấp token bằng mật khẩu vừa bị đặt lại.
+    const current = db.prepare(
+      'SELECT password_hash, token_version FROM users WHERE id = ?'
+    ).get(user.id);
+
+    if (!passwordMatches || !current
+      || current.password_hash !== user.password_hash
+      || current.token_version !== user.token_version) {
       return res.status(401).json({
         success: false,
         message: 'Email hoặc mật khẩu không đúng.',
@@ -147,7 +155,7 @@ router.post('/login', async (req, res) => {
 
     // Token chứa mã người dùng, có hiệu lực trong 1 giờ.
     const token = jwt.sign(
-      {},
+      { tokenVersion: user.token_version },
       JWT_SECRET,
       {
         algorithm: 'HS256',
@@ -196,5 +204,60 @@ router.get('/me', requireAuth, (req, res) => {
   });
 });
 
+router.patch('/me', requireAuth, (req, res) => {
+  const name = req.body?.name;
+
+  if (typeof name !== 'string') {
+    return res.status(400).json({
+      success: false,
+      message: 'Tên không hợp lệ.',
+    });
+  }
+
+  const cleanName = name.trim();
+
+  if (!cleanName || cleanName.length > 100) {
+    return res.status(400).json({
+      success: false,
+      message: 'Tên phải có từ 1 đến 100 ký tự.',
+    });
+  }
+
+  try {
+    const result = db
+      .prepare('UPDATE users SET name = ? WHERE id = ?')
+      .run(cleanName, req.userId);
+
+    if (Number(result.changes) === 0) {
+      return res.status(401).json({
+        success: false,
+        message: 'Tài khoản không còn tồn tại. Vui lòng đăng nhập lại.',
+      });
+    }
+
+    const user = db
+      .prepare(`
+        SELECT id, name, email, created_at
+        FROM users
+        WHERE id = ?
+      `)
+      .get(req.userId);
+
+    return res.json({
+      success: true,
+      message: 'Cập nhật hồ sơ thành công.',
+      user,
+    });
+  } catch (error) {
+    console.error('Update profile error:', error);
+
+    return res.status(500).json({
+      success: false,
+      message: 'Không thể cập nhật hồ sơ. Vui lòng thử lại.',
+    });
+  }
+});
+
 module.exports = router;
+
 
