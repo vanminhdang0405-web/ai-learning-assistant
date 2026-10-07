@@ -1,5 +1,7 @@
 const express = require('express');
 const authRoutes = require('./routes/auth');
+const documentsRoutes = require('./routes/documents');
+
 
 const app = express();
 const PORT = 3000;
@@ -20,7 +22,7 @@ app.get('/api/health', (req, res) => {
 
 // Các API tài khoản.
 app.use('/api/auth', authRoutes);
-
+app.use('/api/documents', documentsRoutes);
 // Đặt sau các route để xử lý đường dẫn không tồn tại.
 app.use((req, res) => {
   res.status(404).json({

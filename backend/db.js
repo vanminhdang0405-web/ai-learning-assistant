@@ -52,4 +52,21 @@ try {
   throw error;
 }
 
+db.exec(`
+  CREATE TABLE IF NOT EXISTS documents (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    mime_type TEXT NOT NULL DEFAULT 'application/pdf',
+    size_bytes INTEGER NOT NULL
+      CHECK (size_bytes > 0 AND size_bytes <= 10485760),
+    content BLOB NOT NULL,
+    created_at TEXT NOT NULL
+      DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_documents_user_id
+  ON documents(user_id, id);
+`);
+
 module.exports = db;

@@ -9,6 +9,7 @@ import {
   RegisterScreen,
 } from './src/screen/AuthScreen';
 import ProfileScreen from './src/screen/ProfileScreen';
+import ForgotPasswordScreen from './src/screen/ForgotPasswordScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -49,6 +50,11 @@ export default function App() {
             name="Profile"
             component={ProfileScreen}
               options={{ title: 'Hồ sơ cá nhân' }}
+          />
+          <Stack.Screen
+            name="ForgotPassword"
+            component={ForgotPasswordScreen}
+            options={{ title: 'Quên mật khẩu' }}
           />
         </Stack.Navigator>
       </NavigationContainer>

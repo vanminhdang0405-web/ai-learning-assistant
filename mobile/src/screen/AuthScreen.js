@@ -171,13 +171,11 @@ function AuthForm({ navigation, isRegister }) {
           {!isRegister && (
             <Pressable
               accessibilityRole="button"
+              disabled={loading}
               style={styles.linkButton}
-              onPress={() =>
-                Alert.alert(
-                  'Quên mật khẩu',
-                  'Chức năng gửi email đặt lại mật khẩu sẽ được nối với backend.'
-                )
-              }
+              onPress={() => navigation.navigate('ForgotPassword', {
+                email: email.trim().toLowerCase(),
+              })}
             >
               <Text style={styles.link}>Quên mật khẩu?</Text>
             </Pressable>
