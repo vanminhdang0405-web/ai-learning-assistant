@@ -4,6 +4,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
 import HomeScreen from './src/screen/HomeScreen';
+import DocumentsScreen from './src/screen/DocumentsScreen';
 import {
   LoginScreen,
   RegisterScreen,
@@ -55,6 +56,11 @@ export default function App() {
             name="ForgotPassword"
             component={ForgotPasswordScreen}
             options={{ title: 'Quên mật khẩu' }}
+          />
+          <Stack.Screen
+            name="Documents"
+            component={DocumentsScreen}
+            options={{ title: 'Tài liệu học tập' }}
           />
         </Stack.Navigator>
       </NavigationContainer>

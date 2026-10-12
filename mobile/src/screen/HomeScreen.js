@@ -82,6 +82,27 @@ export default function HomeScreen({ navigation }) {
     }
   }
 
+  function openDocuments() {
+    if (checkingAccount) return;
+
+    if (!user) {
+      Alert.alert(
+        'Cần đăng nhập',
+        'Bạn hãy đăng nhập để quản lý tài liệu.',
+        [
+          { text: 'Để sau', style: 'cancel' },
+          {
+            text: 'Đăng nhập',
+            onPress: () => navigation.navigate('Login'),
+          },
+        ]
+      );
+      return;
+    }
+
+    navigation.navigate('Documents');
+  }
+
   function showFeature(title) {
     Alert.alert(
       title,
@@ -110,7 +131,7 @@ export default function HomeScreen({ navigation }) {
 
           <Pressable
             accessibilityRole="button"
-            onPress={() => showFeature('Thêm tài liệu')}
+            onPress={openDocuments}
             style={({ pressed }) => [
               styles.primaryButton,
               pressed && styles.buttonPressed,
@@ -126,7 +147,7 @@ export default function HomeScreen({ navigation }) {
           number="01"
           title="Tài liệu học tập"
           description="Quản lý tài liệu, tóm tắt và hỏi đáp với AI."
-          onPress={() => showFeature('Tài liệu học tập')}
+          onPress={openDocuments}
         />
 
         <FeatureCard
