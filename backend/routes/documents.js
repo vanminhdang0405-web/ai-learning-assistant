@@ -182,4 +182,6 @@ router.delete('/:id', readDocumentId, (req, res) => {
   return res.json({ success: true, message: 'Đã xóa tài liệu.' });
 });
 
+router.use('/:id', readDocumentId, require('./documentSummaries'));
+
 module.exports = router;

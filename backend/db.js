@@ -91,4 +91,19 @@ db.exec(`
   );
 `);
 
+// Tóm tắt liên kết với bản trích xuất; giữ nguyên các bảng và dữ liệu cũ.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS document_summaries (
+    document_id INTEGER PRIMARY KEY
+      REFERENCES document_extractions(document_id) ON DELETE CASCADE,
+    source_hash TEXT NOT NULL,
+    summary_json TEXT NOT NULL,
+    model TEXT NOT NULL,
+    prompt_version TEXT NOT NULL,
+    source_page_count INTEGER NOT NULL,
+    source_char_count INTEGER NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+  );
+`);
+
 module.exports = db;

@@ -133,3 +133,14 @@ export async function extractDocumentText(id, force = false) {
   });
   return data.extraction;
 }
+
+// Đọc bản đã lưu không gọi Gemini.
+export function getDocumentSummary(id) {
+  return authorizedRequest(`/documents/${checkedId(id)}/summary`);
+}
+
+export function summarizeDocument(id, force = false) {
+  return authorizedRequest(`/documents/${checkedId(id)}/summarize`, {
+    method: 'POST', body: { force }, timeoutMs: 75000,
+  });
+}

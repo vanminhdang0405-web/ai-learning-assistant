@@ -116,6 +116,14 @@ export default function DocumentTextScreen({ route, navigation }) {
                 {busy === 'loading' ? 'Đang tải bản đã lưu...' : 'Làm mới bản đã lưu'}
               </Text>
             </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              disabled={disabled}
+              onPress={() => navigation.navigate('DocumentSummary', { documentId, documentName })}
+              style={[styles.aiButton, disabled && styles.disabled]}
+            >
+              <Text style={styles.primaryText}>Tóm tắt bằng AI</Text>
+            </Pressable>
             {!!errorMessage && <Text style={styles.error}>{errorMessage}</Text>}
             {extraction && (
               <View style={styles.summary}>
@@ -169,6 +177,7 @@ const styles = StyleSheet.create({
   title: { fontSize: 22, fontWeight: '700', color: '#172033', marginBottom: 10 },
   description: { fontSize: 14, lineHeight: 22, color: '#596579' },
   primaryButton: { backgroundColor: '#2563EB', borderRadius: 12, padding: 15, alignItems: 'center', marginTop: 18 },
+  aiButton: { backgroundColor: '#0F766E', borderRadius: 12, padding: 15, alignItems: 'center', marginBottom: 18 },
   primaryText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
   disabled: { opacity: 0.5 },
   refreshButton: { paddingVertical: 14, alignItems: 'center' },
