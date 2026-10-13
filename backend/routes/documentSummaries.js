@@ -3,6 +3,8 @@ const requireAuth = require('../middleware/requireAuth');
 const { getSource, sourceHash, readSummary, saveSummary } = require('../services/documentSummaryStore');
 const { generateSummary, getConfig, sourceInfo } = require('../services/geminiSummary');
 
+const { readLevel } = require('../services/summaryLevels');
+
 const router = express.Router();
 const active = new Set();
 const lastAttempt = new Map();
@@ -16,9 +18,10 @@ function sendError(error, res, next) {
 
 router.get('/summary', (req, res, next) => {
   try {
+    const level = readLevel(req.query.level);
     const { extraction } = getSource(req.documentId, req.userId);
     res.set('Cache-Control', 'private, no-store');
-    res.json({ success: true, summary: readSummary(req.documentId, req.userId, extraction), source: sourceInfo(extraction) });
+    res.json({ success: true, level, summary: readSummary(req.documentId, req.userId, extraction, level), source: sourceInfo(extraction) });
   } catch (error) { sendError(error, res, next); }
 });
 
@@ -41,15 +44,16 @@ router.post('/summarize', async (req, res, next) => {
   };
   res.on('close', onClose);
   try {
+    const level = readLevel(req.body?.level);
     const force = req.body?.force ?? false;
     if (typeof force !== 'boolean') {
       return res.status(400).json({ success: false, message: 'Tham số tạo lại không hợp lệ.' });
     }
     const { extraction } = getSource(req.documentId, req.userId);
     res.set('Cache-Control', 'private, no-store');
-    const existing = readSummary(req.documentId, req.userId, extraction);
+    const existing = readSummary(req.documentId, req.userId, extraction, level);
     if (existing && !existing.stale && !force) {
-      return res.json({ success: true, cached: true, summary: existing, source: sourceInfo(extraction) });
+      return res.json({ success: true, level, cached: true, summary: existing, source: sourceInfo(extraction) });
     }
     const source = sourceInfo(extraction);
     if (!source.ready) return res.status(422).json({ success: false, message: source.reason });
@@ -70,12 +74,12 @@ router.post('/summarize', async (req, res, next) => {
     active.add(req.documentId);
     ownsSlot = true;
     const hash = sourceHash(extraction);
-    const result = await generateSummary(extraction, { signal: controller.signal });
+    const result = await generateSummary(extraction, { signal: controller.signal, level });
     if (res.destroyed) return;
     // Xác thực lại vì token có thể bị thu hồi trong khi chờ Gemini.
     requireAuth(req, res, () => {
       const summary = saveSummary(req.documentId, req.userId, hash, result);
-      res.json({ success: true, cached: false, summary, source });
+      res.json({ success: true, level, cached: false, summary, source });
     });
   } catch (error) {
     sendError(error, res, next);

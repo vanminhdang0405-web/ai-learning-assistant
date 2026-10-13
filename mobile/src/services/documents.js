@@ -154,13 +154,18 @@ export async function extractDocumentText(id, force = false) {
   return data.extraction;
 }
 
-// Đọc bản đã lưu không gọi Gemini.
-export function getDocumentSummary(id) {
-  return authorizedRequest(`/documents/${checkedId(id)}/summary`);
+function checkedSummaryLevel(level) {
+  if (!['short', 'medium', 'detailed'].includes(level)) throw new Error('Mức tóm tắt không hợp lệ.');
+  return level;
 }
 
-export function summarizeDocument(id, force = false) {
+// Đọc bản đã lưu của mức đang chọn, không gọi Gemini.
+export function getDocumentSummary(id, level = 'medium') {
+  return authorizedRequest(`/documents/${checkedId(id)}/summary?level=${checkedSummaryLevel(level)}`);
+}
+
+export function summarizeDocument(id, force = false, level = 'medium') {
   return authorizedRequest(`/documents/${checkedId(id)}/summarize`, {
-    method: 'POST', body: { force }, timeoutMs: 150000,
+    method: 'POST', body: { force, level: checkedSummaryLevel(level) }, timeoutMs: 150000,
   });
 }

@@ -1,5 +1,6 @@
 const { createHash } = require('node:crypto');
 const db = require('../db');
+const { readLevel } = require('./summaryLevels');
 const { readExtraction } = require('./documentTextStore');
 
 function sourceHash(extraction) {
@@ -17,13 +18,15 @@ function getSource(documentId, userId) {
   return { document: doc, extraction: readExtraction(documentId, userId) };
 }
 
-function readSummary(documentId, userId, extraction) {
+function readSummary(documentId, userId, extraction, level = 'medium') {
+  level = readLevel(level);
   const row = db.prepare(`SELECT s.* FROM document_summaries s
     JOIN documents d ON d.id = s.document_id
-    WHERE s.document_id = ? AND d.user_id = ?`).get(documentId, userId);
+    WHERE s.document_id = ? AND d.user_id = ? AND s.level = ?`).get(documentId, userId, level);
   if (!row) return null;
   return {
     documentId,
+    level: row.level,
     content: JSON.parse(row.summary_json),
     model: row.model,
     createdAt: row.created_at,
@@ -34,6 +37,7 @@ function readSummary(documentId, userId, extraction) {
 }
 
 function saveSummary(documentId, userId, originalHash, result) {
+  const level = readLevel(result.level);
   db.exec('BEGIN IMMEDIATE');
   try {
     const { extraction } = getSource(documentId, userId);
@@ -41,21 +45,21 @@ function saveSummary(documentId, userId, originalHash, result) {
       throw Object.assign(new Error('Văn bản tài liệu đã thay đổi. Hãy tải lại rồi tạo tóm tắt mới.'), { status: 409 });
     }
     db.prepare(`INSERT INTO document_summaries
-      (document_id, source_hash, summary_json, model, prompt_version, source_page_count, source_char_count)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT(document_id) DO UPDATE SET
+      (document_id, level, source_hash, summary_json, model, prompt_version, source_page_count, source_char_count)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(document_id, level) DO UPDATE SET
         source_hash = excluded.source_hash, summary_json = excluded.summary_json,
         model = excluded.model, prompt_version = excluded.prompt_version,
         source_page_count = excluded.source_page_count, source_char_count = excluded.source_char_count,
         created_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
-    `).run(documentId, originalHash, JSON.stringify(result.content), result.model,
+    `).run(documentId, level, originalHash, JSON.stringify(result.content), result.model,
       result.promptVersion, extraction.pageCount, extraction.charCount);
     db.exec('COMMIT');
   } catch (error) {
     db.exec('ROLLBACK');
     throw error;
   }
-  return readSummary(documentId, userId, getSource(documentId, userId).extraction);
+  return readSummary(documentId, userId, getSource(documentId, userId).extraction, level);
 }
 
 module.exports = { sourceHash, getSource, readSummary, saveSummary };

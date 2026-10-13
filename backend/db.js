@@ -119,4 +119,37 @@ try {
   throw error;
 }
 
+// FR-18: mỗi tài liệu lưu độc lập ba mức. Bản cũ được chuyển sang Trung bình.
+// Toàn bộ chuyển đổi nằm trong giao dịch; lỗi sẽ rollback cả cấu trúc và dữ liệu.
+db.exec('BEGIN IMMEDIATE');
+try {
+  const columns = db.prepare('PRAGMA table_info(document_summaries)').all();
+  if (!columns.some(column => column.name === 'level')) {
+    db.exec(`
+      CREATE TABLE document_summaries_levels (
+        document_id INTEGER NOT NULL REFERENCES document_extractions(document_id) ON DELETE CASCADE,
+        level TEXT NOT NULL DEFAULT 'medium' CHECK (level IN ('short', 'medium', 'detailed')),
+        source_hash TEXT NOT NULL,
+        summary_json TEXT NOT NULL,
+        model TEXT NOT NULL,
+        prompt_version TEXT NOT NULL,
+        source_page_count INTEGER NOT NULL,
+        source_char_count INTEGER NOT NULL,
+        created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+        PRIMARY KEY (document_id, level)
+      );
+      INSERT INTO document_summaries_levels
+        (document_id, level, source_hash, summary_json, model, prompt_version, source_page_count, source_char_count, created_at)
+      SELECT document_id, 'medium', source_hash, summary_json, model, prompt_version, source_page_count, source_char_count, created_at
+      FROM document_summaries;
+      DROP TABLE document_summaries;
+      ALTER TABLE document_summaries_levels RENAME TO document_summaries;
+    `);
+  }
+  db.exec('COMMIT');
+} catch (error) {
+  db.exec('ROLLBACK');
+  throw error;
+}
+
 module.exports = db;

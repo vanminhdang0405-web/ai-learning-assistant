@@ -3,6 +3,12 @@ import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { getDocumentSummary, summarizeDocument } from '../services/documents';
 
+const LEVELS = [
+  { value: 'short', label: 'Ngắn', hint: 'Đọc nhanh các ý cốt lõi, tối đa 3 ý chính.' },
+  { value: 'medium', label: 'Trung bình', hint: 'Bao quát nội dung chính và giải thích vừa đủ.' },
+  { value: 'detailed', label: 'Chi tiết', hint: 'Giải thích đầy đủ hơn những nội dung có trong tài liệu.' },
+];
+
 function SourcePages({ pages, unit = 'trang' }) {
   return <Text style={styles.reference}>Tham chiếu: {unit} {pages.join(', ')}</Text>;
 }
@@ -24,6 +30,8 @@ function PointSection({ title, items, unit }) {
 
 export default function DocumentSummaryScreen({ route, navigation }) {
   const { documentId, documentName } = route.params;
+  const [level, setLevel] = useState('medium');
+  const selectedLevel = useRef('medium');
   const [summary, setSummary] = useState(null);
   const [source, setSource] = useState(null);
   const [busy, setBusy] = useState('loading');
@@ -35,27 +43,32 @@ export default function DocumentSummaryScreen({ route, navigation }) {
   useEffect(() => {
     mounted.current = true;
     working.current = false;
+    setLevel('medium');
+    selectedLevel.current = 'medium';
     setSummary(null);
     setSource(null);
-    perform(false);
+    perform(false, false, 'medium');
     return () => {
       mounted.current = false;
       generation.current += 1;
     };
   }, [documentId]);
 
-  async function perform(create, force = false) {
-    if (working.current) return;
+  async function perform(create, force = false, requestedLevel = selectedLevel.current) {
+    if (working.current || requestedLevel !== selectedLevel.current) return;
     working.current = true;
     const ticket = ++generation.current;
-    const current = () => mounted.current && generation.current === ticket;
+    const current = () => mounted.current && generation.current === ticket && selectedLevel.current === requestedLevel;
     setBusy(create ? 'generating' : 'loading');
     setErrorMessage('');
     try {
       const data = create
-        ? await summarizeDocument(documentId, force)
-        : await getDocumentSummary(documentId);
+        ? await summarizeDocument(documentId, force, requestedLevel)
+        : await getDocumentSummary(documentId, requestedLevel);
       if (!current()) return;
+      if (data.level !== requestedLevel || (data.summary && data.summary.level !== requestedLevel)) {
+        throw new Error('Backend chưa trả đúng mức tóm tắt. Kiểm tra đã cập nhật đủ file FR-18 và khởi động lại backend.');
+      }
       setSummary(data.summary);
       setSource(data.source);
     } catch (error) {
@@ -77,19 +90,31 @@ export default function DocumentSummaryScreen({ route, navigation }) {
     }
   }
 
+  function selectLevel(nextLevel) {
+    if (working.current || nextLevel === selectedLevel.current) return;
+    selectedLevel.current = nextLevel;
+    setLevel(nextLevel);
+    setSummary(null);
+    setErrorMessage('');
+    perform(false, false, nextLevel);
+  }
+
   function handleCreate() {
     if (working.current) return;
+    const requestedLevel = selectedLevel.current;
+    const label = LEVELS.find(item => item.value === requestedLevel).label;
     if (summary) {
-      Alert.alert('Tạo lại tóm tắt?', 'Văn bản sẽ được gửi lại tới Gemini và sử dụng thêm hạn mức. Bản cũ chỉ được thay khi tạo thành công.', [
+      Alert.alert(`Tạo lại mức ${label}?`, 'Văn bản sẽ được gửi lại tới Gemini và sử dụng thêm hạn mức. Chỉ bản của mức đang chọn được thay khi tạo thành công.', [
         { text: 'Hủy', style: 'cancel' },
-        { text: 'Tạo lại', onPress: () => perform(true, true) },
+        { text: 'Tạo lại', onPress: () => perform(true, true, requestedLevel) },
       ]);
     } else {
-      perform(true);
+      perform(true, false, requestedLevel);
     }
   }
 
-  const content = summary?.content;
+  const selected = LEVELS.find(item => item.value === level);
+  const content = summary?.level === level ? summary.content : null;
   const unit = source?.sourceUnit === 'part' ? 'phần văn bản' : 'trang';
   const disabled = !!busy;
   return (
@@ -100,6 +125,20 @@ export default function DocumentSummaryScreen({ route, navigation }) {
           Khi bấm tạo tóm tắt, phần chữ đã trích xuất sẽ được gửi tới Google Gemini.
           Hãy dùng tài liệu học tập không chứa thông tin cá nhân. Mở bản đã lưu không gọi AI.
         </Text>
+
+        <Text style={styles.levelHeading}>Mức độ tóm tắt</Text>
+        <View style={styles.levelRow} accessibilityRole="radiogroup">
+          {LEVELS.map(option => (
+            <Pressable key={option.value} accessibilityRole="radio"
+              accessibilityState={{ checked: level === option.value, disabled }}
+              disabled={disabled} onPress={() => selectLevel(option.value)}
+              style={[styles.levelButton, level === option.value && styles.levelSelected, disabled && styles.disabled]}>
+              <Text style={[styles.levelText, level === option.value && styles.levelTextSelected]}>{option.label}</Text>
+            </Pressable>
+          ))}
+        </View>
+        <Text style={styles.description}>{selected.hint}</Text>
+        <Text style={styles.meta}>Mỗi mức được lưu riêng. Chuyển mức chỉ tải bản đã lưu; bấm tạo mới sử dụng AI.</Text>
 
         {source && (
           <Text style={styles.meta}>
@@ -119,7 +158,7 @@ export default function DocumentSummaryScreen({ route, navigation }) {
           onPress={handleCreate} style={[styles.primary, (disabled || !source?.ready) && styles.disabled]}>
           {busy === 'generating' && <ActivityIndicator color="#FFFFFF" style={styles.spinner} />}
           <Text style={styles.primaryText}>
-            {busy === 'generating' ? 'Đang tạo tóm tắt...' : summary ? 'Tạo lại tóm tắt' : 'Tạo tóm tắt bằng Gemini'}
+            {busy === 'generating' ? 'Đang tạo tóm tắt...' : summary ? `Tạo lại · ${selected.label}` : `Tạo tóm tắt · ${selected.label}`}
           </Text>
         </Pressable>
         <Pressable accessibilityRole="button" disabled={disabled} onPress={() => perform(false)} style={styles.secondary}>
@@ -131,6 +170,7 @@ export default function DocumentSummaryScreen({ route, navigation }) {
         {content ? (
           <>
             <View style={styles.card}>
+              <Text style={styles.levelBadge}>Mức {selected.label}</Text>
               <Text style={styles.section}>{content.title}</Text>
               <Text selectable style={styles.body}>{content.overview}</Text>
               <Text style={styles.meta}>Đã lưu: {new Date(summary.createdAt).toLocaleString('vi-VN')}</Text>
@@ -158,7 +198,7 @@ export default function DocumentSummaryScreen({ route, navigation }) {
             <Text style={styles.meta}>AI có thể tóm tắt sai hoặc tham chiếu chưa chính xác. Hãy đối chiếu các ý quan trọng với tài liệu gốc.</Text>
           </>
         ) : !busy && !errorMessage && (
-          <Text style={styles.empty}>Chưa có bản tóm tắt. Trích xuất văn bản rồi bấm tạo tóm tắt để bắt đầu.</Text>
+          <Text style={styles.empty}>Chưa có bản tóm tắt mức {selected.label}. Chọn mức mong muốn rồi bấm tạo khi tài liệu đã có văn bản.</Text>
         )}
       </ScrollView>
     </SafeAreaView>
@@ -170,6 +210,13 @@ const styles = StyleSheet.create({
   content: { padding: 20, paddingBottom: 40 },
   title: { fontSize: 22, fontWeight: '700', color: '#172033', marginBottom: 10 },
   description: { fontSize: 14, lineHeight: 22, color: '#596579' },
+  levelHeading: { fontSize: 16, fontWeight: '700', color: '#172033', marginTop: 20, marginBottom: 10 },
+  levelRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 10 },
+  levelButton: { paddingVertical: 12, paddingHorizontal: 16, borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 10, backgroundColor: '#FFFFFF' },
+  levelSelected: { borderColor: '#0F766E', backgroundColor: '#0F766E' },
+  levelText: { color: '#172033', fontWeight: '600' },
+  levelTextSelected: { color: '#FFFFFF' },
+  levelBadge: { color: '#0F766E', fontWeight: '700', marginBottom: 8 },
   meta: { fontSize: 12, lineHeight: 20, color: '#596579', marginTop: 10, marginBottom: 10 },
   notice: { fontSize: 14, lineHeight: 22, color: '#854D0E', marginTop: 12 },
   primary: { backgroundColor: '#0F766E', borderRadius: 12, padding: 15, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', marginTop: 16 },
