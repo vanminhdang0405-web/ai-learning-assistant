@@ -78,6 +78,7 @@ export default function DocumentTextScreen({ route, navigation }) {
   }
 
   const disabled = busy !== '';
+  const isPart = (extraction?.sourceUnit || route.params.sourceUnit) === 'part';
   const statusLabel = !extraction ? ''
     : extraction.status === 'no_text' ? 'Chưa tìm thấy lớp chữ'
       : extraction.status === 'partial' ? 'Có trang chưa tìm thấy chữ'
@@ -93,7 +94,7 @@ export default function DocumentTextScreen({ route, navigation }) {
           <View>
             <Text style={styles.title}>{documentName}</Text>
             <Text style={styles.description}>
-              Lấy phần chữ trong PDF và lưu theo trang để chuẩn bị cho tóm tắt, hỏi đáp.
+              {isPart ? 'DOCX/TXT được lưu thành các phần văn bản, không giữ phân trang của file gốc.' : 'Lấy phần chữ trong PDF và lưu theo trang để chuẩn bị cho tóm tắt, hỏi đáp.'}
             </Text>
             <Pressable
               accessibilityRole="button"
@@ -129,12 +130,12 @@ export default function DocumentTextScreen({ route, navigation }) {
               <View style={styles.summary}>
                 <Text style={styles.status}>{statusLabel}</Text>
                 <Text style={styles.description}>
-                  {extraction.pageCount} trang · {extraction.charCount.toLocaleString('vi-VN')} ký tự
+                  {extraction.pageCount} {isPart ? 'phần văn bản' : 'trang'} · {extraction.charCount.toLocaleString('vi-VN')} ký tự
                 </Text>
                 <Text style={styles.small}>
                   Đã lưu: {new Date(extraction.extractedAt).toLocaleString('vi-VN')}
                 </Text>
-                {extraction.status !== 'ready' && (
+                {!isPart && extraction.status !== 'ready' && (
                   <Text style={styles.notice}>
                     {extraction.status === 'no_text'
                       ? 'PDF có thể là ảnh scan hoặc không chứa chữ. Nếu trang có chữ dưới dạng ảnh, cần OCR để đọc. Bản này chưa thực hiện OCR.'
@@ -143,7 +144,7 @@ export default function DocumentTextScreen({ route, navigation }) {
                 )}
                 <Text style={styles.small}>
                   Chỉ đọc lớp chữ có sẵn. Chữ nằm trong ảnh chưa được nhận dạng.
-                  Bố cục bảng, công thức hoặc cột có thể khác PDF gốc.
+                  Bố cục bảng, công thức hoặc cột có thể khác tài liệu gốc.
                 </Text>
               </View>
             )}
@@ -152,7 +153,7 @@ export default function DocumentTextScreen({ route, navigation }) {
         ListEmptyComponent={
           <Text style={styles.empty}>
             {busy === 'extracting'
-              ? 'Backend đang đọc PDF. Bạn có thể chờ tại màn hình này.'
+              ? 'Backend đang đọc tài liệu. Bạn có thể chờ tại màn hình này.'
               : busy === 'loading' ? ''
                 : errorMessage ? 'Chưa tải được kết quả. Bạn có thể thử lại.'
                   : 'Tài liệu chưa được trích xuất. Bấm nút phía trên để bắt đầu.'}
@@ -160,9 +161,9 @@ export default function DocumentTextScreen({ route, navigation }) {
         }
         renderItem={({ item }) => (
           <View style={styles.page}>
-            <Text style={styles.pageTitle}>Trang {item.pageNumber}</Text>
+            <Text style={styles.pageTitle}>{isPart ? 'Phần văn bản' : 'Trang'} {item.pageNumber}</Text>
             <Text selectable style={styles.pageText}>
-              {item.text || 'Không tìm thấy chữ trên trang này.'}
+              {item.text || 'Không tìm thấy nội dung văn bản.'}
             </Text>
           </View>
         )}

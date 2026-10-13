@@ -25,7 +25,20 @@ router.get('/summary', (req, res, next) => {
 router.post('/summarize', async (req, res, next) => {
   let ownsSlot = false;
   const controller = new AbortController();
-  const onClose = () => { if (!res.writableEnded) controller.abort(); };
+  const startedAt = Date.now();
+  let logged = false;
+  const logResult = status => {
+    if (logged) return;
+    logged = true;
+    console.info('[summary-api]', JSON.stringify({ documentId: req.documentId, status, elapsedMs: Date.now() - startedAt }));
+  };
+  res.once('finish', () => logResult(res.statusCode));
+  const onClose = () => {
+    if (!res.writableEnded) {
+      logResult(499);
+      controller.abort();
+    }
+  };
   res.on('close', onClose);
   try {
     const force = req.body?.force ?? false;

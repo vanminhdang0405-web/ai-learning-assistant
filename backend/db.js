@@ -106,4 +106,17 @@ db.exec(`
   );
 `);
 
+// FR-12: nhãn môn học/chủ đề; tài liệu cũ mặc định chưa phân loại.
+db.exec('BEGIN IMMEDIATE');
+try {
+  if (!db.prepare('PRAGMA table_info(documents)').all().some(c => c.name === 'topic')) {
+    db.exec("ALTER TABLE documents ADD COLUMN topic TEXT NOT NULL DEFAULT ''");
+  }
+  db.exec('CREATE INDEX IF NOT EXISTS idx_documents_topic ON documents(user_id, topic)');
+  db.exec('COMMIT');
+} catch (error) {
+  db.exec('ROLLBACK');
+  throw error;
+}
+
 module.exports = db;

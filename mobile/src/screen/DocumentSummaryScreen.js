@@ -3,11 +3,11 @@ import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { getDocumentSummary, summarizeDocument } from '../services/documents';
 
-function SourcePages({ pages }) {
-  return <Text style={styles.reference}>Tham chiếu: trang {pages.join(', ')}</Text>;
+function SourcePages({ pages, unit = 'trang' }) {
+  return <Text style={styles.reference}>Tham chiếu: {unit} {pages.join(', ')}</Text>;
 }
 
-function PointSection({ title, items }) {
+function PointSection({ title, items, unit }) {
   if (!items.length) return null;
   return (
     <View style={styles.card}>
@@ -15,7 +15,7 @@ function PointSection({ title, items }) {
       {items.map((item, index) => (
         <View key={index} style={styles.item}>
           <Text selectable style={styles.body}>{index + 1}. {item.text}</Text>
-          <SourcePages pages={item.pages} />
+          <SourcePages pages={item.pages} unit={unit} />
         </View>
       ))}
     </View>
@@ -90,6 +90,7 @@ export default function DocumentSummaryScreen({ route, navigation }) {
   }
 
   const content = summary?.content;
+  const unit = source?.sourceUnit === 'part' ? 'phần văn bản' : 'trang';
   const disabled = !!busy;
   return (
     <SafeAreaView style={styles.container} edges={['left', 'right', 'bottom']}>
@@ -102,15 +103,16 @@ export default function DocumentSummaryScreen({ route, navigation }) {
 
         {source && (
           <Text style={styles.meta}>
-            {source.pageCount} trang · {source.charCount.toLocaleString('vi-VN')} ký tự
+            {source.pageCount} {unit} · {source.charCount.toLocaleString('vi-VN')} ký tự
           </Text>
         )}
         {source && !source.ready && <Text style={styles.notice}>{source.reason}</Text>}
         {!!source?.pagesWithoutText?.length && (
           <Text style={styles.notice}>
-            Chưa có chữ ở trang {source.pagesWithoutText.join(', ')}. Tóm tắt chỉ dựa trên phần chữ đã đọc được; chưa bao gồm OCR.
+            Chưa có chữ ở {unit} {source.pagesWithoutText.join(', ')}. Tóm tắt chỉ dựa trên phần chữ đã đọc được; chưa bao gồm OCR.
           </Text>
         )}
+        {source?.sourceUnit === 'part' && <Text style={styles.meta}>DOCX/TXT được đọc thành phần văn bản; tham chiếu không phải số trang trong file gốc.</Text>}
         {summary?.stale && <Text style={styles.notice}>Văn bản đã thay đổi. Bản tóm tắt dưới đây thuộc phiên bản cũ; hãy tạo lại.</Text>}
 
         <Pressable accessibilityRole="button" disabled={disabled || !source?.ready}
@@ -124,7 +126,7 @@ export default function DocumentSummaryScreen({ route, navigation }) {
           <Text style={styles.secondaryText}>{busy === 'loading' ? 'Đang tải...' : 'Tải bản đã lưu'}</Text>
         </Pressable>
         {!!errorMessage && <Text accessibilityRole="alert" style={styles.error}>{errorMessage}</Text>}
-        {busy === 'generating' && <Text style={styles.meta}>Có thể mất khoảng một phút. Nếu rời màn hình, bạn có thể quay lại và tải bản đã lưu.</Text>}
+        {busy === 'generating' && <Text style={styles.meta}>Có thể mất đến 2 phút. Giữ màn hình này mở trong lúc chờ. Không cần bấm tạo nhiều lần.</Text>}
 
         {content ? (
           <>
@@ -133,7 +135,7 @@ export default function DocumentSummaryScreen({ route, navigation }) {
               <Text selectable style={styles.body}>{content.overview}</Text>
               <Text style={styles.meta}>Đã lưu: {new Date(summary.createdAt).toLocaleString('vi-VN')}</Text>
             </View>
-            <PointSection title="Các ý chính" items={content.mainPoints} />
+            <PointSection title="Các ý chính" items={content.mainPoints} unit={unit} />
             {!!content.keyTerms.length && (
               <View style={styles.card}>
                 <Text style={styles.section}>Thuật ngữ cần nhớ</Text>
@@ -141,19 +143,19 @@ export default function DocumentSummaryScreen({ route, navigation }) {
                   <View key={index} style={styles.item}>
                     <Text selectable style={styles.term}>{item.term}</Text>
                     <Text selectable style={styles.body}>{item.definition}</Text>
-                    <SourcePages pages={item.pages} />
+                    <SourcePages pages={item.pages} unit={unit} />
                   </View>
                 ))}
               </View>
             )}
-            <PointSection title="Kiến thức cần nhớ" items={content.takeaways} />
+            <PointSection title="Kiến thức cần nhớ" items={content.takeaways} unit={unit} />
             {!!content.caveats.length && (
               <View style={styles.card}>
                 <Text style={styles.section}>Giới hạn của nội dung</Text>
                 {content.caveats.map((item, index) => <Text key={index} selectable style={styles.body}>• {item}</Text>)}
               </View>
             )}
-            <Text style={styles.meta}>AI có thể tóm tắt sai hoặc dẫn trang chưa chính xác. Hãy đối chiếu các ý quan trọng với PDF gốc.</Text>
+            <Text style={styles.meta}>AI có thể tóm tắt sai hoặc tham chiếu chưa chính xác. Hãy đối chiếu các ý quan trọng với tài liệu gốc.</Text>
           </>
         ) : !busy && !errorMessage && (
           <Text style={styles.empty}>Chưa có bản tóm tắt. Trích xuất văn bản rồi bấm tạo tóm tắt để bắt đầu.</Text>

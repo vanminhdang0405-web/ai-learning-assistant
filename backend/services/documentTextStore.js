@@ -2,7 +2,7 @@ const db = require('../db');
 
 function readExtraction(documentId, userId) {
   const row = db.prepare(`
-    SELECT e.* FROM document_extractions e
+    SELECT e.*, d.mime_type FROM document_extractions e
     JOIN documents d ON d.id = e.document_id
     WHERE e.document_id = ? AND d.user_id = ?
   `).get(documentId, userId);
@@ -13,6 +13,7 @@ function readExtraction(documentId, userId) {
   `).all(documentId);
   return {
     documentId,
+    sourceUnit: row.mime_type === 'application/pdf' ? 'page' : 'part',
     status: row.status,
     pageCount: row.page_count,
     charCount: row.char_count,

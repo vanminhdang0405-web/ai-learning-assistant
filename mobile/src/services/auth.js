@@ -4,9 +4,14 @@ import * as SecureStore from 'expo-secure-store';
 const API_URL = 'http://192.168.1.7:3000/api';
 const TOKEN_KEY = 'auth_token';
 
+/**
+ * @param {string} path
+ * @param {{method?: string, body?: any, token?: string, timeoutMs?: number, responseType?: string, expectedContentType?: string}} options
+ * @returns {Promise<any>}
+ */
 async function request(
   path,
-  { method = 'GET', body, token, timeoutMs = 15000, responseType = 'json' } = {}
+  { method = 'GET', body, token, timeoutMs = 15000, responseType = 'json', expectedContentType = 'application/pdf' } = {}
 ) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
@@ -14,7 +19,7 @@ async function request(
 
   try {
     const headers = {
-      Accept: responseType === 'arrayBuffer' ? 'application/pdf' : 'application/json',
+      Accept: responseType === 'arrayBuffer' ? expectedContentType : 'application/json',
     };
 
     if (body !== undefined && !isFormData) {
@@ -34,8 +39,8 @@ async function request(
 
     if (response.ok && responseType === 'arrayBuffer') {
       const contentType = response.headers.get('content-type') || '';
-      if (!/^application\/pdf(?:;|$)/i.test(contentType)) {
-        throw new Error('Backend chưa trả về file PDF. Kiểm tra API tài liệu.');
+      if (contentType.split(';')[0].trim().toLowerCase() !== expectedContentType.toLowerCase()) {
+        throw new Error('Backend trả về định dạng file không đúng với tài liệu đã chọn.');
       }
       return await response.arrayBuffer();
     }
@@ -43,9 +48,9 @@ async function request(
     const data = await response.json();
 
     if (!response.ok || !data.success) {
-      const error = new Error(data.message || 'Yêu cầu không thành công.');
-      error.status = response.status;
-      throw error;
+      throw Object.assign(new Error(data.message || 'Yêu cầu không thành công.'), {
+        status: response.status, code: data.code,
+      });
     }
 
     return data;
@@ -106,9 +111,7 @@ export async function updateProfile(name) {
   const token = await SecureStore.getItemAsync(TOKEN_KEY);
 
   if (!token) {
-    const error = new Error('Bạn cần đăng nhập lại.');
-    error.status = 401;
-    throw error;
+    throw Object.assign(new Error('Bạn cần đăng nhập lại.'), { status: 401 });
   }
 
   try {
@@ -149,9 +152,7 @@ export function resetPassword(email, code, newPassword) {
 export async function authorizedRequest(path, options = {}) {
   const token = await SecureStore.getItemAsync(TOKEN_KEY);
   if (!token) {
-    const error = new Error('Bạn cần đăng nhập để quản lý tài liệu.');
-    error.status = 401;
-    throw error;
+    throw Object.assign(new Error('Bạn cần đăng nhập để quản lý tài liệu.'), { status: 401 });
   }
   try {
     return await request(path, { ...options, token });
