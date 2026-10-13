@@ -13,6 +13,7 @@ import {
   getDocuments,
   uploadDocument,
   deleteDocument,
+  openDocument,
 } from '../services/documents';
 
 const MAX_SIZE = 10 * 1024 * 1024;
@@ -102,6 +103,23 @@ export default function DocumentsScreen({ navigation }) {
     }
   }
 
+  async function handleOpen(document) {
+    if (working.current || !mounted.current) return;
+    working.current = true;
+    setBusy('opening');
+    try {
+      await openDocument(
+        document,
+        () => mounted.current && navigation.isFocused()
+      );
+    } catch (error) {
+      showError(error);
+    } finally {
+      working.current = false;
+      if (mounted.current) setBusy('');
+    }
+  }
+
   async function removeDocument(document) {
     if (working.current || !mounted.current) return;
     working.current = true;
@@ -138,7 +156,9 @@ export default function DocumentsScreen({ navigation }) {
     <SafeAreaView style={styles.container} edges={['left', 'right', 'bottom']}>
       <View style={styles.header}>
         <Text style={styles.heading}>Tài liệu của bạn</Text>
-        <Text style={styles.subtitle}>Tải lên file PDF, tối đa 10 MB mỗi file.</Text>
+        <Text style={styles.subtitle}>
+          Tải lên PDF tối đa 10 MB. Bấm tên tài liệu để mở và đọc.
+        </Text>
         <Pressable
           accessibilityRole="button"
           disabled={disabled}
@@ -166,6 +186,9 @@ export default function DocumentsScreen({ navigation }) {
             Chưa tải được danh sách. Bấm Làm mới để thử lại.
           </Text>
         )}
+        {busy === 'opening' && (
+          <Text style={styles.subtitle}>Đang tải / mở PDF...</Text>
+        )}
         {busy === 'deleting' && (
           <Text style={styles.subtitle}>Đang xóa tài liệu...</Text>
         )}
@@ -188,13 +211,32 @@ export default function DocumentsScreen({ navigation }) {
         renderItem={({ item }) => (
           <View style={styles.card}>
             <Text style={styles.pdfLabel}>PDF</Text>
-            <View style={styles.documentInfo}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`Mở ${item.name}`}
+              disabled={disabled}
+              onPress={() => handleOpen(item)}
+              style={[styles.documentInfo, disabled && styles.disabled]}
+            >
               <Text style={styles.documentName}>{item.name}</Text>
               <Text style={styles.documentMeta}>
                 {formatSize(item.size_bytes)}{' · '}
                 {new Date(item.created_at).toLocaleDateString('vi-VN')}
               </Text>
-            </View>
+              <Text style={styles.openText}>Mở PDF ›</Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`Xem văn bản ${item.name}`}
+              disabled={disabled}
+              onPress={() => navigation.navigate('DocumentText', {
+                documentId: item.id,
+                documentName: item.name,
+              })}
+              style={styles.textButton}
+            >
+              <Text style={styles.textButtonLabel}>Văn bản</Text>
+            </Pressable>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={`Xóa ${item.name}`}
@@ -239,9 +281,12 @@ const styles = StyleSheet.create({
     color: '#1D4ED8', backgroundColor: '#DBEAFE', fontWeight: '700',
     padding: 10, borderRadius: 8, marginRight: 12,
   },
-  documentInfo: { flex: 1 },
+  documentInfo: { flex: 1, paddingVertical: 8 },
+  openText: { color: '#2563EB', fontWeight: '600', marginTop: 8 },
   documentName: { fontSize: 15, fontWeight: '600', color: '#172033' },
   documentMeta: { fontSize: 12, color: '#64748B', marginTop: 6 },
+  textButton: { paddingVertical: 12, paddingHorizontal: 8 },
+  textButtonLabel: { color: '#2563EB', fontWeight: '600' },
   deleteButton: { padding: 10, marginLeft: 4 },
   deleteText: { color: '#DC2626', fontWeight: '600' },
 });

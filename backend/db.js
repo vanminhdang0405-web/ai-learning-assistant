@@ -69,4 +69,26 @@ db.exec(`
   ON documents(user_id, id);
 `);
 
+// Văn bản được lưu riêng, liên kết với PDF hiện có; migration có thể chạy lại.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS document_extractions (
+    document_id INTEGER PRIMARY KEY REFERENCES documents(id) ON DELETE CASCADE,
+    status TEXT NOT NULL CHECK (status IN ('ready', 'partial', 'no_text')),
+    page_count INTEGER NOT NULL CHECK (page_count > 0),
+    char_count INTEGER NOT NULL CHECK (char_count >= 0),
+    parser_version TEXT NOT NULL,
+    extracted_at TEXT NOT NULL
+      DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+  );
+
+  CREATE TABLE IF NOT EXISTS document_pages (
+    document_id INTEGER NOT NULL
+      REFERENCES document_extractions(document_id) ON DELETE CASCADE,
+    page_number INTEGER NOT NULL CHECK (page_number > 0),
+    text TEXT NOT NULL,
+    char_count INTEGER NOT NULL CHECK (char_count >= 0),
+    PRIMARY KEY (document_id, page_number)
+  );
+`);
+
 module.exports = db;

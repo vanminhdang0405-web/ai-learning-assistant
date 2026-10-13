@@ -5,6 +5,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
 import HomeScreen from './src/screen/HomeScreen';
 import DocumentsScreen from './src/screen/DocumentsScreen';
+import DocumentTextScreen from './src/screen/DocumentTextScreen';
 import {
   LoginScreen,
   RegisterScreen,
@@ -61,6 +62,11 @@ export default function App() {
             name="Documents"
             component={DocumentsScreen}
             options={{ title: 'Tài liệu học tập' }}
+          />
+          <Stack.Screen
+            name="DocumentText"
+            component={DocumentTextScreen}
+            options={{ title: 'Văn bản tài liệu' }}
           />
         </Stack.Navigator>
       </NavigationContainer>

@@ -4,14 +4,17 @@ import * as SecureStore from 'expo-secure-store';
 const API_URL = 'http://192.168.1.7:3000/api';
 const TOKEN_KEY = 'auth_token';
 
-async function request(path, { method = 'GET', body, token, timeoutMs = 15000 } = {}) {
+async function request(
+  path,
+  { method = 'GET', body, token, timeoutMs = 15000, responseType = 'json' } = {}
+) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   const isFormData = typeof FormData !== 'undefined' && body instanceof FormData;
 
   try {
     const headers = {
-      Accept: 'application/json',
+      Accept: responseType === 'arrayBuffer' ? 'application/pdf' : 'application/json',
     };
 
     if (body !== undefined && !isFormData) {
@@ -28,6 +31,14 @@ async function request(path, { method = 'GET', body, token, timeoutMs = 15000 } 
       body: body === undefined ? undefined : isFormData ? body : JSON.stringify(body),
       signal: controller.signal,
     });
+
+    if (response.ok && responseType === 'arrayBuffer') {
+      const contentType = response.headers.get('content-type') || '';
+      if (!/^application\/pdf(?:;|$)/i.test(contentType)) {
+        throw new Error('Backend chưa trả về file PDF. Kiểm tra API tài liệu.');
+      }
+      return await response.arrayBuffer();
+    }
 
     const data = await response.json();
 
