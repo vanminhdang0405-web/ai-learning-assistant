@@ -1,7 +1,7 @@
 import * as SecureStore from 'expo-secure-store';
 
 // Thay bằng IPv4 của máy tính đang chạy backend.
-const API_URL = 'http://192.168.1.7:3000/api';
+const API_URL = 'http://192.168.1.12:3000/api';
 const TOKEN_KEY = 'auth_token';
 
 /**
