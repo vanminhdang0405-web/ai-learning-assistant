@@ -159,13 +159,20 @@ function checkedSummaryLevel(level) {
   return level;
 }
 
-// Đọc bản đã lưu của mức đang chọn, không gọi Gemini.
-export function getDocumentSummary(id, level = 'medium') {
-  return authorizedRequest(`/documents/${checkedId(id)}/summary?level=${checkedSummaryLevel(level)}`);
+function checkedSummaryScope(scope) {
+  if (typeof scope !== 'string' || !/^(all|range:[1-9]\d{0,5}:[1-9]\d{0,5}|section:[1-9]\d{0,5}:\d{1,7})$/.test(scope)) {
+    throw new Error('Phạm vi tóm tắt không hợp lệ.');
+  }
+  return scope;
 }
 
-export function summarizeDocument(id, force = false, level = 'medium') {
+// Chọn phạm vi/mức chỉ đọc bản đã lưu, không gọi Gemini.
+export function getDocumentSummary(id, level = 'medium', scope = 'all') {
+  return authorizedRequest(`/documents/${checkedId(id)}/summary?level=${checkedSummaryLevel(level)}&scope=${encodeURIComponent(checkedSummaryScope(scope))}`);
+}
+
+export function summarizeDocument(id, force = false, level = 'medium', scope = 'all', sourceVersion = undefined) {
   return authorizedRequest(`/documents/${checkedId(id)}/summarize`, {
-    method: 'POST', body: { force, level: checkedSummaryLevel(level) }, timeoutMs: 150000,
+    method: 'POST', body: { force, level: checkedSummaryLevel(level), scope: checkedSummaryScope(scope), sourceVersion }, timeoutMs: 150000,
   });
 }

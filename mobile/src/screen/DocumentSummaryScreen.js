@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import SummaryScopePicker from './SummaryScopePicker';
+import SummarySavedList from './SummarySavedList';
 import { getDocumentSummary, summarizeDocument } from '../services/documents';
 
 const LEVELS = [
@@ -32,6 +34,15 @@ export default function DocumentSummaryScreen({ route, navigation }) {
   const { documentId, documentName } = route.params;
   const [level, setLevel] = useState('medium');
   const selectedLevel = useRef('medium');
+  const selectedScope = useRef('all');
+  const sourceVersion = useRef(undefined);
+  const [scope, setScope] = useState({ key: 'all', label: 'Toàn bộ tài liệu' });
+  const [sections, setSections] = useState([]);
+  const [savedRanges, setSavedRanges] = useState([]);
+  const [savedSummaries, setSavedSummaries] = useState([]);
+  const [documentSource, setDocumentSource] = useState(null);
+  const [truncated, setTruncated] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
   const [summary, setSummary] = useState(null);
   const [source, setSource] = useState(null);
   const [busy, setBusy] = useState('loading');
@@ -45,6 +56,15 @@ export default function DocumentSummaryScreen({ route, navigation }) {
     working.current = false;
     setLevel('medium');
     selectedLevel.current = 'medium';
+    selectedScope.current = 'all';
+    sourceVersion.current = undefined;
+    setScope({ key: 'all', label: 'Toàn bộ tài liệu' });
+    setSections([]);
+    setSavedRanges([]);
+    setSavedSummaries([]);
+    setDocumentSource(null);
+    setTruncated(false);
+    setShowPreview(false);
     setSummary(null);
     setSource(null);
     perform(false, false, 'medium');
@@ -54,25 +74,39 @@ export default function DocumentSummaryScreen({ route, navigation }) {
     };
   }, [documentId]);
 
-  async function perform(create, force = false, requestedLevel = selectedLevel.current) {
-    if (working.current || requestedLevel !== selectedLevel.current) return;
+  async function perform(create, force = false, requestedLevel = selectedLevel.current, requestedScope = selectedScope.current) {
+    if (working.current || requestedLevel !== selectedLevel.current || requestedScope !== selectedScope.current) return;
     working.current = true;
     const ticket = ++generation.current;
-    const current = () => mounted.current && generation.current === ticket && selectedLevel.current === requestedLevel;
+    const current = () => mounted.current && generation.current === ticket && selectedLevel.current === requestedLevel && selectedScope.current === requestedScope;
     setBusy(create ? 'generating' : 'loading');
     setErrorMessage('');
     try {
       const data = create
-        ? await summarizeDocument(documentId, force, requestedLevel)
-        : await getDocumentSummary(documentId, requestedLevel);
+        ? await summarizeDocument(documentId, force, requestedLevel, requestedScope, sourceVersion.current)
+        : await getDocumentSummary(documentId, requestedLevel, requestedScope);
       if (!current()) return;
-      if (data.level !== requestedLevel || (data.summary && data.summary.level !== requestedLevel)) {
-        throw new Error('Backend chưa trả đúng mức tóm tắt. Kiểm tra đã cập nhật đủ file FR-18 và khởi động lại backend.');
+      if (data.level !== requestedLevel || data.scope?.key !== requestedScope
+          || (data.summary && (data.summary.level !== requestedLevel || data.summary.scope?.key !== requestedScope))) {
+        throw new Error('Backend chưa trả đúng phạm vi/mức tóm tắt. Kiểm tra đã cập nhật đủ file FR-19 và khởi động lại backend.');
       }
       setSummary(data.summary);
       setSource(data.source);
+      setScope(data.scope);
+      setSections(data.sections || []);
+      setSavedRanges(data.savedRanges || []);
+      setSavedSummaries(data.savedSummaries || []);
+      setDocumentSource(data.documentSource);
+      setTruncated(!!data.sectionsTruncated);
+      sourceVersion.current = data.sourceVersion;
     } catch (error) {
       if (!current()) return;
+      if (!create) {
+        setSource(null);
+        sourceVersion.current = undefined;
+        setScope(previous => previous.label === 'Đang tải phạm vi đã chọn...'
+          ? { ...previous, label: 'Chưa tải được phạm vi. Hãy thử lại hoặc đổi lựa chọn.' } : previous);
+      }
       setErrorMessage(error.message || 'Chưa thực hiện được. Vui lòng thử lại.');
       if (error.status === 401) {
         setSummary(null);
@@ -81,6 +115,10 @@ export default function DocumentSummaryScreen({ route, navigation }) {
       } else if (error.status === 404) {
         setSummary(null);
         setSource(null);
+        setDocumentSource(null);
+        setSections([]);
+        setSavedRanges([]);
+        setSavedSummaries([]);
       }
     } finally {
       if (current()) {
@@ -94,38 +132,62 @@ export default function DocumentSummaryScreen({ route, navigation }) {
     if (working.current || nextLevel === selectedLevel.current) return;
     selectedLevel.current = nextLevel;
     setLevel(nextLevel);
+    setSource(null);
+    sourceVersion.current = undefined;
     setSummary(null);
     setErrorMessage('');
     perform(false, false, nextLevel);
   }
 
-  function handleCreate() {
+  function selectScope(key) {
     if (working.current) return;
+    selectedScope.current = key;
+    setScope({ key, label: key === 'all' ? 'Toàn bộ tài liệu' : 'Đang tải phạm vi đã chọn...' });
+    sourceVersion.current = undefined;
+    setSummary(null);
+    setSource(null);
+    setShowPreview(false);
+    perform(false, false, selectedLevel.current, key);
+  }
+
+  function openSaved(item) {
+    if (working.current) return;
+    selectedLevel.current = item.level;
+    setLevel(item.level);
+    selectScope(item.scope.key);
+  }
+
+  function handleCreate() {
+    if (working.current || !source?.ready) return;
+    const requestedScope = selectedScope.current;
     const requestedLevel = selectedLevel.current;
     const label = LEVELS.find(item => item.value === requestedLevel).label;
     if (summary) {
-      Alert.alert(`Tạo lại mức ${label}?`, 'Văn bản sẽ được gửi lại tới Gemini và sử dụng thêm hạn mức. Chỉ bản của mức đang chọn được thay khi tạo thành công.', [
+      Alert.alert(`Tạo lại mức ${label}?`, `Phạm vi: ${scope.label}. Văn bản sẽ được gửi lại tới Gemini và sử dụng thêm hạn mức. Chỉ bản của phạm vi và mức đang chọn được thay khi tạo thành công.`, [
         { text: 'Hủy', style: 'cancel' },
-        { text: 'Tạo lại', onPress: () => perform(true, true, requestedLevel) },
+        { text: 'Tạo lại', onPress: () => perform(true, true, requestedLevel, requestedScope) },
       ]);
     } else {
-      perform(true, false, requestedLevel);
+      perform(true, false, requestedLevel, requestedScope);
     }
   }
 
   const selected = LEVELS.find(item => item.value === level);
-  const content = summary?.level === level ? summary.content : null;
+  const content = summary?.level === level && summary?.scope?.key === scope.key ? summary.content : null;
   const unit = source?.sourceUnit === 'part' ? 'phần văn bản' : 'trang';
   const disabled = !!busy;
   return (
     <SafeAreaView style={styles.container} edges={['left', 'right', 'bottom']}>
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <Text style={styles.title}>{documentName}</Text>
         <Text style={styles.description}>
-          Khi bấm tạo tóm tắt, phần chữ đã trích xuất sẽ được gửi tới Google Gemini.
+          Khi bấm tạo tóm tắt, phần chữ trong phạm vi đã chọn sẽ được gửi tới Google Gemini.
           Hãy dùng tài liệu học tập không chứa thông tin cá nhân. Mở bản đã lưu không gọi AI.
         </Text>
 
+        <SummarySavedList key={`saved-${documentId}`} items={savedSummaries} disabled={disabled} onOpen={openSaved} />
+        <SummaryScopePicker key={documentId} scope={scope} sections={sections} savedRanges={savedRanges}
+          documentSource={documentSource} truncated={truncated} disabled={disabled} onSelect={selectScope} />
         <Text style={styles.levelHeading}>Mức độ tóm tắt</Text>
         <View style={styles.levelRow} accessibilityRole="radiogroup">
           {LEVELS.map(option => (
@@ -138,13 +200,24 @@ export default function DocumentSummaryScreen({ route, navigation }) {
           ))}
         </View>
         <Text style={styles.description}>{selected.hint}</Text>
-        <Text style={styles.meta}>Mỗi mức được lưu riêng. Chuyển mức chỉ tải bản đã lưu; bấm tạo mới sử dụng AI.</Text>
+        <Text style={styles.meta}>Mỗi phạm vi và mức độ được lưu riêng. Đổi lựa chọn chỉ tải bản đã lưu; bấm tạo mới sử dụng AI.</Text>
 
         {source && (
           <Text style={styles.meta}>
             {source.pageCount} {unit} · {source.charCount.toLocaleString('vi-VN')} ký tự
           </Text>
         )}
+        {source?.previewStart && <View style={styles.card}>
+          <Pressable accessibilityRole="button" accessibilityState={{ expanded: showPreview }} onPress={() => setShowPreview(!showPreview)}>
+            <Text style={styles.secondaryText}>{showPreview ? 'Ẩn đoạn đầu/cuối' : 'Xem đoạn đầu/cuối của phạm vi'}</Text>
+          </Pressable>
+          {showPreview && <>
+            <Text style={styles.meta}>Đầu phạm vi (tối đa 300 ký tự)</Text>
+            <Text selectable style={styles.body}>{source.previewStart}</Text>
+            <Text style={styles.meta}>Cuối phạm vi (tối đa 300 ký tự)</Text>
+            <Text selectable style={styles.body}>{source.previewEnd}</Text>
+          </>}
+        </View>}
         {source && !source.ready && <Text style={styles.notice}>{source.reason}</Text>}
         {!!source?.pagesWithoutText?.length && (
           <Text style={styles.notice}>
@@ -170,10 +243,11 @@ export default function DocumentSummaryScreen({ route, navigation }) {
         {content ? (
           <>
             <View style={styles.card}>
-              <Text style={styles.levelBadge}>Mức {selected.label}</Text>
+              <Text style={styles.levelBadge}>{summary.scope.label || scope.label} · Mức {selected.label}</Text>
               <Text style={styles.section}>{content.title}</Text>
               <Text selectable style={styles.body}>{content.overview}</Text>
-              <Text style={styles.meta}>Đã lưu: {new Date(summary.createdAt).toLocaleString('vi-VN')}</Text>
+              <Text style={styles.meta}>Đã tự động lưu: {new Date(summary.createdAt).toLocaleString('vi-VN')}</Text>
+              <Text style={styles.meta}>Nguồn khi tạo: {summary.sourcePageCount} {unit} · {summary.sourceCharCount?.toLocaleString('vi-VN')} ký tự</Text>
             </View>
             <PointSection title="Các ý chính" items={content.mainPoints} unit={unit} />
             {!!content.keyTerms.length && (
@@ -198,7 +272,7 @@ export default function DocumentSummaryScreen({ route, navigation }) {
             <Text style={styles.meta}>AI có thể tóm tắt sai hoặc tham chiếu chưa chính xác. Hãy đối chiếu các ý quan trọng với tài liệu gốc.</Text>
           </>
         ) : !busy && !errorMessage && (
-          <Text style={styles.empty}>Chưa có bản tóm tắt mức {selected.label}. Chọn mức mong muốn rồi bấm tạo khi tài liệu đã có văn bản.</Text>
+          <Text style={styles.empty}>Chưa có bản tóm tắt mức {selected.label} cho phạm vi này. Chọn phạm vi và mức mong muốn rồi bấm tạo khi đã có đủ văn bản.</Text>
         )}
       </ScrollView>
     </SafeAreaView>

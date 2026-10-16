@@ -152,4 +152,39 @@ try {
   throw error;
 }
 
+// FR-19: preserve all FR-18 variants under scope_key='all'.
+// The new composite key keeps each level AND selected section independent.
+db.exec('BEGIN IMMEDIATE');
+try {
+  const columns = db.prepare('PRAGMA table_info(document_summaries)').all();
+  if (!columns.some(column => column.name === 'scope_key')) {
+    db.exec(`
+      CREATE TABLE document_summaries_scopes (
+        document_id INTEGER NOT NULL REFERENCES document_extractions(document_id) ON DELETE CASCADE,
+        level TEXT NOT NULL CHECK (level IN ('short', 'medium', 'detailed')),
+        scope_key TEXT NOT NULL DEFAULT 'all',
+        scope_json TEXT NOT NULL DEFAULT '{"key":"all","kind":"all","label":"Toàn bộ tài liệu"}',
+        source_hash TEXT NOT NULL,
+        summary_json TEXT NOT NULL,
+        model TEXT NOT NULL,
+        prompt_version TEXT NOT NULL,
+        source_page_count INTEGER NOT NULL,
+        source_char_count INTEGER NOT NULL,
+        created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+        PRIMARY KEY (document_id, level, scope_key)
+      );
+      INSERT INTO document_summaries_scopes
+        (document_id, level, source_hash, summary_json, model, prompt_version, source_page_count, source_char_count, created_at)
+      SELECT document_id, level, source_hash, summary_json, model, prompt_version, source_page_count, source_char_count, created_at
+      FROM document_summaries;
+      DROP TABLE document_summaries;
+      ALTER TABLE document_summaries_scopes RENAME TO document_summaries;
+    `);
+  }
+  db.exec('COMMIT');
+} catch (error) {
+  db.exec('ROLLBACK');
+  throw error;
+}
+
 module.exports = db;
