@@ -245,5 +245,6 @@ router.delete('/:id', readDocumentId, (req, res) => {
 });
 
 router.use('/:id', readDocumentId, require('./documentSummaries'));
+router.use('/:id', readDocumentId, require('./documentQuestions'));
 
 module.exports = router;

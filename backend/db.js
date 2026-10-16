@@ -187,4 +187,24 @@ try {
   throw error;
 }
 
+// FR-30: chỉ ghi hội thoại khi người dùng chọn lưu lịch sử.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS document_conversations (
+    id TEXT PRIMARY KEY,
+    document_id INTEGER NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    scope_key TEXT NOT NULL,
+    scope_json TEXT NOT NULL,
+    source_version TEXT NOT NULL,
+    source_unit TEXT NOT NULL,
+    title TEXT NOT NULL,
+    turns_json TEXT NOT NULL,
+    revision INTEGER NOT NULL CHECK (revision >= 0 AND revision <= 10),
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_document_conversations_owner
+  ON document_conversations(user_id, document_id, updated_at DESC, id);
+`);
+
 module.exports = db;

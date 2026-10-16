@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import DocumentQuestionsPanel from './DocumentQuestionsPanel';
 import { getDocumentText, extractDocumentText } from '../services/documents';
 
 export default function DocumentTextScreen({ route, navigation }) {
   const { documentId, documentName } = route.params;
+  const [showQuestions, setShowQuestions] = useState(false);
   const [extraction, setExtraction] = useState(null);
   const [busy, setBusy] = useState('loading');
   const [errorMessage, setErrorMessage] = useState('');
@@ -17,6 +19,7 @@ export default function DocumentTextScreen({ route, navigation }) {
     currentId.current = documentId;
     working.current = false;
     setExtraction(null);
+    setShowQuestions(false);
     loadSaved();
     return () => { mounted.current = false; };
   }, [documentId]);
@@ -84,6 +87,14 @@ export default function DocumentTextScreen({ route, navigation }) {
       : extraction.status === 'partial' ? 'Có trang chưa tìm thấy chữ'
         : 'Đã đọc lớp chữ có sẵn';
 
+  if (showQuestions) {
+    return <SafeAreaView style={styles.container} edges={['left', 'right', 'bottom']}>
+      <DocumentQuestionsPanel documentId={documentId} documentName={documentName}
+        onShowText={() => { setShowQuestions(false); loadSaved(); }}
+        onSessionExpired={() => showError({ status: 401, message: 'Phiên đăng nhập đã hết hạn.' })} />
+    </SafeAreaView>;
+  }
+
   return (
     <SafeAreaView style={styles.container} edges={['left', 'right', 'bottom']}>
       <FlatList
@@ -124,6 +135,10 @@ export default function DocumentTextScreen({ route, navigation }) {
               style={[styles.aiButton, disabled && styles.disabled]}
             >
               <Text style={styles.primaryText}>Tóm tắt bằng AI</Text>
+            </Pressable>
+            <Pressable accessibilityRole="button" disabled={disabled}
+              onPress={() => setShowQuestions(true)} style={[styles.aiButton, disabled && styles.disabled]}>
+              <Text style={styles.primaryText}>Hỏi đáp với tài liệu</Text>
             </Pressable>
             {!!errorMessage && <Text style={styles.error}>{errorMessage}</Text>}
             {extraction && (

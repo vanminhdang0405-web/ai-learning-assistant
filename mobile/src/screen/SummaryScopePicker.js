@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
-export default function SummaryScopePicker({ scope, sections, savedRanges, documentSource, truncated, disabled, onSelect }) {
+export default function SummaryScopePicker({ scope, sections, savedRanges, documentSource, truncated, disabled, onSelect,
+  heading = 'Phạm vi tóm tắt', footer = 'Chọn phạm vi chỉ tải dữ liệu đã lưu. Bấm Tạo tóm tắt mới gọi AI.' }) {
   const [expanded, setExpanded] = useState(false);
   const [search, setSearch] = useState('');
   const [start, setStart] = useState('1');
@@ -26,7 +27,7 @@ export default function SummaryScopePicker({ scope, sections, savedRanges, docum
   }
   return (
     <View style={styles.card}>
-      <Text style={styles.heading}>Phạm vi tóm tắt</Text>
+      <Text style={styles.heading}>{heading}</Text>
       <Text style={styles.selected}>{scope?.label || 'Toàn bộ tài liệu'}</Text>
       {!!scope?.startPage && <Text style={styles.meta}>{unit} {scope.startPage}–{scope.endPage}</Text>}
       <Pressable accessibilityRole="button" accessibilityState={{ expanded, disabled }}
@@ -38,7 +39,7 @@ export default function SummaryScopePicker({ scope, sections, savedRanges, docum
           <Text style={styles.action}>Toàn bộ tài liệu</Text>
         </Pressable>
         <Text style={styles.heading}>Chương / mục gợi ý</Text>
-        <Text style={styles.meta}>Nhận diện từ tiêu đề trong văn bản, có thể chưa chính xác. Kiểm tra đoạn đầu/cuối trước khi tạo.</Text>
+        <Text style={styles.meta}>Nhận diện từ tiêu đề trong văn bản, có thể chưa chính xác. Kiểm tra đoạn đầu/cuối trước khi gửi yêu cầu AI.</Text>
         {!!sections.length && <TextInput accessibilityLabel="Tìm chương hoặc mục" placeholder="Tìm theo tên chương/mục"
           value={search} onChangeText={setSearch} editable={!disabled} style={styles.input} />}
         {matches.slice(0, 20).map(item => <Pressable key={item.key} accessibilityRole="button"
@@ -66,7 +67,7 @@ export default function SummaryScopePicker({ scope, sections, savedRanges, docum
           {savedRanges.map(item => <Pressable key={item.key} accessibilityRole="button"
             disabled={disabled} onPress={() => select(item.key)} style={styles.option}><Text style={styles.action}>{item.label}</Text></Pressable>)}
         </>}
-        <Text style={styles.meta}>Chọn phạm vi chỉ tải dữ liệu đã lưu. Bấm Tạo tóm tắt mới gọi AI.</Text>
+        <Text style={styles.meta}>{footer}</Text>
       </>}
     </View>
   );
