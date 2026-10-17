@@ -1,3 +1,4 @@
+import { colors } from './src/theme';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { NavigationContainer } from '@react-navigation/native';
@@ -23,12 +24,15 @@ export default function App() {
 
       <NavigationContainer>
         <Stack.Navigator
+          id="RootStack"
           initialRouteName="Home"
           screenOptions={{
-            headerTintColor: '#172033',
-            headerStyle: { backgroundColor: '#F4F7FB' },
+            headerTintColor: colors.heading,
+            headerStyle: { backgroundColor: colors.background },
             headerShadowVisible: false,
-            contentStyle: { backgroundColor: '#F4F7FB' },
+            contentStyle: { backgroundColor: colors.background },
+            headerTitleStyle: { fontSize: 16, fontWeight: '600' },
+            headerBackButtonDisplayMode: 'minimal',
           }}
         >
           <Stack.Screen
@@ -67,7 +71,7 @@ export default function App() {
           <Stack.Screen
             name="DocumentText"
             component={DocumentTextScreen}
-            options={{ title: 'Văn bản tài liệu' }}
+            options={{ title: 'Không gian tài liệu' }}
           />
           <Stack.Screen
             name="DocumentSummary"

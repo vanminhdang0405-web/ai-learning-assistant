@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Icon } from '../components/AppUI';
+import { colors } from '../theme';
 
 export default function SummaryScopePicker({ scope, sections, savedRanges, documentSource, truncated, disabled, onSelect,
   heading = 'Phạm vi tóm tắt', footer = 'Chọn phạm vi chỉ tải dữ liệu đã lưu. Bấm Tạo tóm tắt mới gọi AI.' }) {
@@ -27,12 +29,11 @@ export default function SummaryScopePicker({ scope, sections, savedRanges, docum
   }
   return (
     <View style={styles.card}>
-      <Text style={styles.heading}>{heading}</Text>
-      <Text style={styles.selected}>{scope?.label || 'Toàn bộ tài liệu'}</Text>
-      {!!scope?.startPage && <Text style={styles.meta}>{unit} {scope.startPage}–{scope.endPage}</Text>}
-      <Pressable accessibilityRole="button" accessibilityState={{ expanded, disabled }}
-        disabled={disabled} onPress={() => setExpanded(!expanded)} style={[styles.button, disabled && styles.disabled]}>
-        <Text style={styles.action}>{expanded ? 'Đóng lựa chọn' : 'Đổi phạm vi'}</Text>
+      <Pressable accessibilityRole="button" accessibilityLabel={`${heading}: ${scope?.label || 'Toàn bộ tài liệu'}`} accessibilityState={{ expanded, disabled }}
+        disabled={disabled} onPress={() => setExpanded(!expanded)} style={[styles.scopeHeader, disabled && styles.disabled]}>
+        <View style={styles.scopeIcon}><Icon name="sliders" size={18} /></View><View style={{ flex: 1 }}><Text style={styles.scopeLabel}>{heading}</Text><Text style={styles.selected}>{scope?.label || 'Toàn bộ tài liệu'}</Text>
+          {!!scope?.startPage && <Text style={styles.meta}>{unit} {scope.startPage}–{scope.endPage}</Text>}</View>
+        <Icon name={expanded ? 'chevron-up' : 'chevron-down'} size={18} />
       </Pressable>
       {expanded && <>
         <Pressable accessibilityRole="button" disabled={disabled} onPress={() => select('all')} style={styles.option}>
@@ -74,14 +75,15 @@ export default function SummaryScopePicker({ scope, sections, savedRanges, docum
 }
 
 const styles = StyleSheet.create({
-  card: { padding: 16, backgroundColor: '#FFFFFF', borderColor: '#E2E8F0', borderWidth: 1, borderRadius: 12, marginTop: 16 },
-  heading: { color: '#172033', fontWeight: '700', fontSize: 16, marginTop: 10, marginBottom: 8 },
-  selected: { color: '#0F766E', fontSize: 16, fontWeight: '700', lineHeight: 24 },
-  meta: { color: '#596579', fontSize: 13, lineHeight: 21, marginBottom: 6 },
-  action: { color: '#0F766E', fontWeight: '600', lineHeight: 22 },
-  button: { paddingVertical: 12, alignItems: 'center', backgroundColor: '#E6F4F1', borderRadius: 8, marginTop: 8 },
-  option: { paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#E2E8F0' },
-  input: { borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 8, padding: 12, color: '#172033', backgroundColor: '#FFFFFF', minHeight: 48 },
+  scopeHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 52 }, scopeIcon: { width: 38, height: 38, backgroundColor: colors.soft, borderRadius: 12, alignItems: 'center', justifyContent: 'center' }, scopeLabel: { color: colors.muted, fontSize: 11, lineHeight: 18, marginBottom: 3 },
+  card: { padding: 16, backgroundColor: '#FFFFFF', borderColor: '#DEE6D9', borderWidth: 1, borderRadius: 18, marginTop: 16 },
+  heading: { color: '#253B31', fontWeight: '700', fontSize: 16, marginTop: 10, marginBottom: 8 },
+  selected: { color: '#216647', fontSize: 14, fontWeight: '700', lineHeight: 24 },
+  meta: { color: '#66776D', fontSize: 13, lineHeight: 21, marginBottom: 6 },
+  action: { color: '#216647', fontWeight: '600', lineHeight: 22 },
+  button: { paddingVertical: 12, alignItems: 'center', backgroundColor: '#E9F2E3', borderRadius: 8, marginTop: 8 },
+  option: { paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#DEE6D9' },
+  input: { borderWidth: 1, borderColor: '#DEE6D9', borderRadius: 8, padding: 12, color: '#253B31', backgroundColor: '#FFFFFF', minHeight: 48 },
   row: { flexDirection: 'row', gap: 12 }, field: { flex: 1 },
-  error: { color: '#B91C1C', lineHeight: 22, marginTop: 8 }, disabled: { opacity: 0.5 },
+  error: { color: '#B33B3B', lineHeight: 22, marginTop: 8 }, disabled: { opacity: 0.5 },
 });

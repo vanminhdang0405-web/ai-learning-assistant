@@ -3,22 +3,14 @@ import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, Sc
 import { useHeaderHeight } from '@react-navigation/elements';
 import { askDocumentQuestion, getQuestionSource, createConversation, getConversation, getConversations, saveConversation, deleteConversation } from '../services/questions';
 import SummaryScopePicker from './SummaryScopePicker';
+import { isAICooldown, showAICooldown } from '../utils/aiCooldown';
+import { Badge, Button, Disclosure, EmptyState, Icon, ScreenIntro } from '../components/AppUI';
+import { colors } from '../theme';
 
-// Keep labels next to symbols so every action is understandable without the icon.
 function ActionButton({ label, icon, onPress, disabled = false, loading = false,
   tone = 'secondary', expanded = undefined, accessibilityLabel = undefined, style = undefined }) {
-  const color = disabled ? '#64748B' : tone === 'primary' ? '#FFFFFF' : tone === 'danger' ? '#B91C1C' : '#166534';
-  const surface = tone === 'primary' ? styles.buttonPrimary : tone === 'danger' ? styles.buttonDanger
-    : tone === 'neutral' ? styles.buttonNeutral : styles.buttonSecondary;
-  return <Pressable accessibilityRole="button" accessibilityLabel={accessibilityLabel || label}
-    accessibilityState={{ disabled, busy: loading, ...(expanded === undefined ? {} : { expanded }) }}
-    disabled={disabled} onPress={onPress}
-    style={({ pressed }) => [styles.actionButton, surface, style,
-      disabled && styles.buttonDisabled, pressed && !disabled && styles.buttonPressed]}>
-    {loading ? <ActivityIndicator size="small" color={color} />
-      : <Text accessible={false} importantForAccessibility="no" style={[styles.buttonIcon, { color }]}>{icon}</Text>}
-    <Text style={[styles.buttonLabel, { color }]}>{label}</Text>
-  </Pressable>;
+  return <Button label={label} icon={icon} onPress={onPress} disabled={disabled} loading={loading}
+    tone={tone === 'neutral' ? 'ghost' : tone} expanded={expanded} accessibilityLabel={accessibilityLabel} style={style} compact />;
 }
 
 export default function DocumentQuestionsPanel({ documentId, documentName, onShowText, onSessionExpired }) {
@@ -57,6 +49,7 @@ export default function DocumentQuestionsPanel({ documentId, documentName, onSho
   }, [documentId]);
 
   function handleError(error) {
+    if (showAICooldown(error)) return;
     setErrorMessage(error.message || 'Chưa thực hiện được. Vui lòng thử lại.');
     const documentMissing = error.status === 404 && error.code !== 'CONVERSATION_NOT_FOUND';
     if (error.status === 401 || documentMissing) {
@@ -208,7 +201,9 @@ export default function DocumentQuestionsPanel({ documentId, documentName, onSho
       } catch (error) {
         if (!current()) return;
         setQuestion(text);
-        setMessages(previous => previous.map(turn => turn.id === id ? { ...turn, pending: false, error: error.message || 'Chưa nhận được câu trả lời.' } : turn));
+        setMessages(previous => isAICooldown(error)
+          ? previous.filter(turn => turn.id !== id)
+          : previous.map(turn => turn.id === id ? { ...turn, pending: false, error: error.message || 'Chưa nhận được câu trả lời.' } : turn));
         // A lost HTTP response may still have been committed. Read server state before retrying.
         if (![429, 422, 400].includes(error.status) && error.code !== 'AI_BUSY') setNeedsSync(true);
         throw error;
@@ -226,8 +221,7 @@ export default function DocumentQuestionsPanel({ documentId, documentName, onSho
         followBottom.current = contentOffset.y + layoutMeasurement.height >= contentSize.height - 100;
       }} scrollEventThrottle={100}
       onContentSizeChange={() => { if (followBottom.current) scroll.current?.scrollToEnd({ animated: true }); }}>
-      <Text style={styles.title}>Hỏi đáp với tài liệu</Text>
-      <Text style={styles.document}>{documentName}</Text>
+      <ScreenIntro eyebrow="HỎI SÂU, HIỂU RÕ" title="Hiểu sâu hơn." description={documentName} icon="message-circle" />
       <ActionButton label="Về văn bản tài liệu" icon="←" tone="neutral" onPress={leavePanel} disabled={disabled} style={styles.backButton} />
       <View style={styles.toolbar}>
         <ActionButton label="Cuộc trò chuyện mới" icon="＋" disabled={disabled || blocked}
@@ -236,12 +230,9 @@ export default function DocumentQuestionsPanel({ documentId, documentName, onSho
           disabled={disabled || blocked} loading={busy === 'history'} expanded={!!history}
           onPress={showHistory} style={styles.toolbarButton} />
       </View>
-      <Text style={styles.meta}>{conversation?.saved ? 'Đã lưu · Các lượt tiếp theo được tự lưu' : 'Chế độ tạm · Chưa lưu lịch sử'} · {conversation?.revision || 0}/10 lượt</Text>
-      <Text style={styles.meta}>Mỗi cuộc tối đa 10 lượt để giới hạn lượng ngữ cảnh gửi AI. Cuộc trò chuyện mới không dùng trao đổi của cuộc cũ.</Text>
+      <View style={styles.statusRow}><Badge label={conversation?.saved ? 'Đã lưu lịch sử' : 'Cuộc trò chuyện tạm'} icon={conversation?.saved ? 'check-circle' : 'clock'} /><Text style={styles.meta}>{conversation?.revision || 0}/10 lượt</Text></View>
       {!!conversation?.turns.length && !conversation.saved && <ActionButton label="Lưu lịch sử" icon="💾" tone="primary"
         disabled={disabled || blocked || needsSync} loading={busy === 'saving'} onPress={saveCurrent} style={styles.spacedButton} />}
-      <Text style={styles.description}>Bạn có thể hỏi nối tiếp như “Giải thích thêm về nó” trong cùng cuộc trò chuyện. Câu trả lời vẫn phải dựa trên phạm vi tài liệu đã chọn.</Text>
-      <Text style={styles.meta}>Mặc định là trò chuyện tạm: không lưu vào lịch sử, mất khi rời màn hình, backend khởi động lại hoặc sau 2 giờ không hoạt động. Bấm Lưu lịch sử để giữ cuộc trò chuyện và tự lưu các lượt tiếp theo. Khi gửi câu hỏi, phần chữ và các lượt trao đổi trước của cuộc này được gửi tới Gemini.</Text>
       {history && <View style={styles.preview}>
         <Text style={styles.aiLabel}>Lịch sử của tài liệu này</Text>
         {!history.length && <Text style={styles.meta}>Chưa có cuộc trò chuyện nào được lưu.</Text>}
@@ -259,17 +250,18 @@ export default function DocumentQuestionsPanel({ documentId, documentName, onSho
         </View>)}
       </View>}
       {readOnly && <Text style={styles.notice}>Cuộc trò chuyện hiện chỉ xem được. Hãy bắt đầu cuộc trò chuyện mới để dùng nguồn hiện tại.</Text>}
-      {needsSync && <Text style={styles.notice}>Bấm Đồng bộ hội thoại để kiểm tra lượt vừa gửi trước khi hỏi tiếp. Thao tác này không gọi AI.</Text>}
+      {needsSync && <View><Text style={styles.notice}>Đồng bộ để kiểm tra lượt vừa gửi trước khi hỏi tiếp.</Text><ActionButton label="Đồng bộ hội thoại" icon="refresh-cw" disabled={disabled || blocked} onPress={() => openConversation(conversation.id, false)} /></View>}
       {conversation?.revision >= 10 && <Text style={styles.notice}>Đã đủ 10 lượt. Bạn có thể lưu lịch sử và bắt đầu cuộc trò chuyện mới.</Text>}
       <SummaryScopePicker scope={scope} sections={metadata?.sections || []} savedRanges={[]}
         documentSource={metadata?.documentSource} truncated={metadata?.sectionsTruncated} disabled={disabled || blocked}
         heading="Phạm vi hỏi đáp" footer="Chọn phạm vi chỉ đọc văn bản đã lưu. Bấm Gửi câu hỏi mới gọi AI."
         onSelect={key => { if (key !== selectedScope.current) confirmLeave(() => startFresh(key)); }} />
-      <ActionButton label={busy === 'loading' ? 'Đang tải...' : conversation ? 'Đồng bộ hội thoại' : 'Tải lại phạm vi'} icon="↻"
-        disabled={disabled || blocked} loading={busy === 'loading'}
-        onPress={() => conversation ? openConversation(conversation.id, false) : loadSource()} style={styles.spacedButton} />
-      {metadata && <Text style={styles.meta}>{metadata.source.pageCount} {unit} · {metadata.source.charCount.toLocaleString('vi-VN')} ký tự</Text>}
       {metadata && !metadata.source.ready && <Text style={styles.notice}>{metadata.source.reason}</Text>}
+      <Disclosure title="Thông tin nguồn & đồng bộ" icon="file-text">
+      {!needsSync && <ActionButton label={busy === 'loading' ? 'Đang tải...' : conversation ? 'Đồng bộ hội thoại' : 'Tải lại phạm vi'} icon="↻"
+        disabled={disabled || blocked} loading={busy === 'loading'}
+        onPress={() => conversation ? openConversation(conversation.id, false) : loadSource()} style={styles.spacedButton} />}
+      {metadata && <Text style={styles.meta}>{metadata.source.pageCount} {unit} · {metadata.source.charCount.toLocaleString('vi-VN')} ký tự</Text>}
       {!!metadata?.source.pagesWithoutText.length && <Text style={styles.notice}>Chưa có chữ ở {unit} {metadata.source.pagesWithoutText.join(', ')}. Câu trả lời không bao gồm nội dung hình ảnh chưa được OCR.</Text>}
       {metadata?.source.sourceUnit === 'part' && <Text style={styles.meta}>Tham chiếu là số phần văn bản, không phải số trang DOCX/TXT gốc.</Text>}
       {metadata?.source.previewStart && <View style={styles.preview}>
@@ -280,13 +272,17 @@ export default function DocumentQuestionsPanel({ documentId, documentName, onSho
           <Text style={styles.meta}>Cuối phạm vi</Text><Text selectable style={styles.body}>{metadata.source.previewEnd}</Text>
         </>}
       </View>}
+      </Disclosure>
       {!!errorMessage && <Text accessibilityRole="alert" style={styles.error}>{errorMessage}</Text>}
-      {!messages.length && !busy && <Text style={styles.empty}>Đặt một câu hỏi về nội dung tài liệu. Ví dụ: “Khái niệm View được giải thích như thế nào?”</Text>}
+      {!messages.length && !busy && <View><Text style={styles.starterLabel}>GỢI Ý ĐỂ BẮT ĐẦU</Text>
+        <View style={styles.suggestions}>{['Nội dung chính của tài liệu là gì?', 'Giải thích khái niệm quan trọng nhất.', 'Cho một ví dụ dựa trên tài liệu.'].map(value => <Pressable key={value} accessibilityRole="button" disabled={disabled || blocked} onPress={() => setQuestion(value)} style={styles.suggestion}><Text style={styles.suggestionText}>{value}</Text><Icon name="arrow-up-left" size={16} /></Pressable>)}</View>
+      </View>}
+
       {messages.map(item => <View key={item.id} style={styles.exchange}>
         <View style={styles.userBubble}><Text style={styles.userLabel}>Bạn</Text><Text selectable style={styles.userText}>{item.question}</Text></View>
         <View style={styles.aiBubble}>
-          <Text style={styles.aiLabel}>Trợ lý học tập</Text>
-          {item.pending ? <View style={styles.waiting}><ActivityIndicator color="#0F766E" /><Text style={styles.meta}>Đang tìm câu trả lời… Có thể mất đến 2 phút.</Text></View>
+          <View style={styles.assistantHeading}><View style={styles.assistantIcon}><Icon name="sun" size={15} /></View><Text style={styles.aiLabel}>Trợ lý học tập</Text></View>
+          {item.pending ? <View style={styles.waiting}><ActivityIndicator color="#216647" /><Text style={styles.meta}>Đang tìm câu trả lời… Có thể mất đến 2 phút.</Text></View>
             : item.error ? <>
               <Text accessibilityRole="alert" style={styles.error}>{item.error}</Text>
               <ActionButton label="Đưa câu hỏi vào ô nhập để thử lại" icon="↩" disabled={disabled || blocked}
@@ -303,10 +299,11 @@ export default function DocumentQuestionsPanel({ documentId, documentName, onSho
         </View>
       </View>)}
       {!!messages.length && <Text style={styles.meta}>Đối chiếu câu trả lời với đoạn trích và tài liệu gốc; AI vẫn có thể diễn giải sai.</Text>}
+      <Disclosure title="Lưu hội thoại & cách sử dụng AI" icon="info"><Text style={styles.meta}>Bấm Lưu lịch sử để giữ các trao đổi và tự lưu các lượt tiếp theo. Cuộc trò chuyện tạm mất khi rời màn hình hoặc sau 2 giờ không hoạt động. Mỗi cuộc tối đa 10 lượt. Phần chữ trong tài liệu và ngữ cảnh hội thoại được gửi đến Gemini khi bạn đặt câu hỏi.</Text></Disclosure>
     </ScrollView>
     <View style={styles.composer}>
       <TextInput accessibilityLabel="Câu hỏi về tài liệu" multiline maxLength={1001} editable={!disabled && !blocked}
-        value={question} onChangeText={setQuestion} placeholder="Nhập câu hỏi hoặc hỏi nối tiếp…" style={styles.input} />
+        value={question} onChangeText={setQuestion} placeholder="Bạn muốn hiểu thêm điều gì?" placeholderTextColor={colors.muted} style={styles.input} />
       <View style={styles.composerRow}>
         <Text style={styles.meta}>{question.trim().length}/1.000 ký tự</Text>
         <ActionButton label={busy === 'asking' ? 'Đang trả lời…' : 'Gửi câu hỏi'} icon="➤" tone="primary"
@@ -319,19 +316,23 @@ export default function DocumentQuestionsPanel({ documentId, documentName, onSho
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F4F7FB' }, content: { padding: 16, paddingBottom: 24 },
-  title: { fontSize: 22, fontWeight: '700', color: '#172033', marginBottom: 6 },
-  document: { color: '#0F766E', fontWeight: '600', fontSize: 15, lineHeight: 22 },
-  description: { color: '#596579', fontSize: 14, lineHeight: 22, marginTop: 12 },
-  meta: { fontSize: 12, lineHeight: 20, color: '#596579', marginTop: 6 },
-  link: { color: '#0F766E', fontWeight: '600', lineHeight: 22 },
+  starterLabel: { color: colors.muted, fontSize: 10, letterSpacing: 1.2, fontWeight: '700', marginTop: 24, marginBottom: 12 },
+  statusRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 14 },
+  suggestions: { gap: 8, marginBottom: 16 }, suggestion: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.surface, borderRadius: 14, borderWidth: 1, borderColor: colors.border, padding: 13 }, suggestionText: { color: colors.primary, fontSize: 12, lineHeight: 20, flex: 1 },
+  assistantHeading: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }, assistantIcon: { width: 28, height: 28, borderRadius: 10, backgroundColor: colors.soft, alignItems: 'center', justifyContent: 'center' },
+  container: { flex: 1, backgroundColor: '#F6F8F2' }, content: { padding: 16, paddingBottom: 24 },
+  title: { fontSize: 22, fontWeight: '700', color: '#253B31', marginBottom: 6 },
+  document: { color: '#216647', fontWeight: '600', fontSize: 15, lineHeight: 22 },
+  description: { color: '#66776D', fontSize: 14, lineHeight: 22, marginTop: 12 },
+  meta: { fontSize: 12, lineHeight: 20, color: '#66776D', marginTop: 6 },
+  link: { color: '#216647', fontWeight: '600', lineHeight: 22 },
   actionButton: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 8, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 12, borderWidth: 1 },
-  buttonPrimary: { backgroundColor: '#15803D', borderColor: '#15803D' },
-  buttonSecondary: { backgroundColor: '#ECFDF3', borderColor: '#86C99D' },
-  buttonNeutral: { backgroundColor: '#FFFFFF', borderColor: '#CBD5E1' },
-  buttonDanger: { backgroundColor: '#FEF2F2', borderColor: '#F5A8A8' },
-  buttonDisabled: { backgroundColor: '#E2E8F0', borderColor: '#CBD5E1' },
+    gap: 8, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 18, borderWidth: 1 },
+  buttonPrimary: { backgroundColor: '#216647', borderColor: '#216647' },
+  buttonSecondary: { backgroundColor: '#E9F2E3', borderColor: '#CFDDC5' },
+  buttonNeutral: { backgroundColor: '#FFFFFF', borderColor: '#DEE6D9' },
+  buttonDanger: { backgroundColor: '#FFF1EE', borderColor: '#F5A8A8' },
+  buttonDisabled: { backgroundColor: '#DEE6D9', borderColor: '#DEE6D9' },
   buttonPressed: { opacity: 0.72 },
   buttonIcon: { fontSize: 21, lineHeight: 26, minWidth: 24, textAlign: 'center' },
   buttonLabel: { fontSize: 14, lineHeight: 21, fontWeight: '700', flexShrink: 1, textAlign: 'center' },
@@ -339,23 +340,23 @@ const styles = StyleSheet.create({
   spacedButton: { marginTop: 10 },
   toolbar: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 2 },
   toolbarButton: { flexGrow: 1, flexBasis: 150 },
-  historyItem: { borderBottomWidth: 1, borderBottomColor: '#E2E8F0', paddingVertical: 12 },
-  historyOpen: { minHeight: 48, padding: 14, borderRadius: 12, borderWidth: 1, borderColor: '#86C99D', backgroundColor: '#F0FDF4' },
-  historyDisabled: { opacity: 0.5 }, openLabel: { color: '#166534', fontSize: 14, lineHeight: 21, fontWeight: '700', marginTop: 8 },
-  preview: { backgroundColor: '#FFFFFF', padding: 14, borderRadius: 10, marginVertical: 8 },
-  notice: { color: '#854D0E', fontSize: 13, lineHeight: 21, marginVertical: 6 },
-  error: { color: '#B91C1C', fontSize: 14, lineHeight: 22, marginVertical: 6 },
-  empty: { textAlign: 'center', color: '#596579', lineHeight: 23, marginVertical: 20 },
-  exchange: { marginTop: 20 }, userBubble: { backgroundColor: '#0F766E', borderRadius: 14, padding: 14, marginLeft: 28 },
-  userLabel: { color: '#D1FAE5', fontWeight: '700', fontSize: 12, marginBottom: 5 },
+  historyItem: { borderBottomWidth: 1, borderBottomColor: '#DEE6D9', paddingVertical: 12 },
+  historyOpen: { minHeight: 48, padding: 14, borderRadius: 18, borderWidth: 1, borderColor: '#CFDDC5', backgroundColor: '#EFF5E9' },
+  historyDisabled: { opacity: 0.5 }, openLabel: { color: '#216647', fontSize: 14, lineHeight: 21, fontWeight: '700', marginTop: 8 },
+  preview: { backgroundColor: '#FFFFFF', padding: 14, borderRadius: 14, marginVertical: 8 },
+  notice: { color: '#92530F', fontSize: 13, lineHeight: 21, marginVertical: 6 },
+  error: { color: '#B33B3B', fontSize: 14, lineHeight: 22, marginVertical: 6 },
+  empty: { textAlign: 'center', color: '#66776D', lineHeight: 23, marginVertical: 20 },
+  exchange: { marginTop: 20 }, userBubble: { backgroundColor: '#216647', borderRadius: 20, borderBottomRightRadius: 6, padding: 14, marginLeft: 28 },
+  userLabel: { color: '#C6E6A1', fontWeight: '700', fontSize: 12, marginBottom: 5 },
   userText: { color: '#FFFFFF', fontSize: 15, lineHeight: 24 },
-  aiBubble: { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 14, padding: 14, marginTop: 10, marginRight: 12 },
-  aiLabel: { color: '#0F766E', fontSize: 12, fontWeight: '700', marginBottom: 8 },
-  body: { color: '#172033', fontSize: 15, lineHeight: 25 }, waiting: { gap: 8, alignItems: 'flex-start' },
-  reference: { borderLeftWidth: 3, borderLeftColor: '#99D5C7', paddingLeft: 10, marginTop: 12 },
-  quote: { color: '#596579', fontSize: 13, lineHeight: 21 },
-  composer: { paddingHorizontal: 16, paddingTop: 10, paddingBottom: 8, backgroundColor: '#FFFFFF', borderTopWidth: 1, borderTopColor: '#E2E8F0' },
-  input: { minHeight: 48, maxHeight: 120, borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 10, padding: 12, color: '#172033', fontSize: 15, textAlignVertical: 'top' },
+  aiBubble: { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#DEE6D9', borderRadius: 20, borderTopLeftRadius: 6, padding: 18, marginTop: 12, marginRight: 12 },
+  aiLabel: { color: '#216647', fontSize: 12, fontWeight: '700' },
+  body: { color: '#253B31', fontSize: 15, lineHeight: 25 }, waiting: { gap: 8, alignItems: 'flex-start' },
+  reference: { borderLeftWidth: 3, borderLeftColor: '#C6E6A1', paddingLeft: 10, marginTop: 12 },
+  quote: { color: '#66776D', fontSize: 13, lineHeight: 21 },
+  composer: { paddingHorizontal: 16, paddingTop: 10, paddingBottom: 8, backgroundColor: '#FFFFFF', borderTopWidth: 1, borderTopColor: '#DEE6D9' },
+  input: { minHeight: 48, maxHeight: 120, borderWidth: 1, borderColor: '#DEE6D9', borderRadius: 14, padding: 12, color: '#253B31', fontSize: 15, textAlignVertical: 'top' },
   composerRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginTop: 6 },
   sendButton: { maxWidth: '100%' },
 });

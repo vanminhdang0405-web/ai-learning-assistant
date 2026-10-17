@@ -6,40 +6,14 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useHeaderHeight } from '@react-navigation/elements';
 import { requestPasswordReset, resetPassword } from '../services/auth';
+import { Button, Field, ScreenIntro, Steps } from '../components/AppUI';
+import { colors, ui } from '../theme';
 
 // Giữ khoảng chờ khi người dùng đóng rồi mở lại màn hình trong cùng phiên app.
 let nextSendAllowedAt = 0;
 
-function Field({ label, ...props }) {
-  return (
-    <>
-      <Text style={styles.label}>{label}</Text>
-      <TextInput
-        style={styles.input}
-        placeholderTextColor="#64748B"
-        accessibilityLabel={label}
-        autoCapitalize="none"
-        autoCorrect={false}
-        {...props}
-      />
-    </>
-  );
-}
-
 function Action({ title, onPress, disabled, secondary = false }) {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      disabled={disabled}
-      onPress={onPress}
-      style={({ pressed }) => [
-        secondary ? styles.linkButton : styles.button,
-        (pressed || disabled) && styles.dimmed,
-      ]}
-    >
-      <Text style={secondary ? styles.link : styles.buttonText}>{title}</Text>
-    </Pressable>
-  );
+  return <Button label={title} onPress={onPress} disabled={disabled} tone={secondary ? 'ghost' : 'primary'} style={{ marginTop: 10 }} />;
 }
 
 export default function ForgotPasswordScreen({ navigation, route }) {
@@ -164,14 +138,11 @@ export default function ForgotPasswordScreen({ navigation, route }) {
         keyboardVerticalOffset={headerHeight}
       >
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-          <Text style={styles.title}>Quên mật khẩu</Text>
-          <Text style={styles.subtitle}>
-            {sentEmail
-              ? 'Nhập mã trong email mới nhất và tạo mật khẩu mới.'
-              : 'Nhập email đã đăng ký để yêu cầu mã đặt lại mật khẩu.'}
-          </Text>
-
-          <Field label="Email" value={email} onChangeText={setEmail}
+          <ScreenIntro eyebrow="TÀI KHOẢN CỦA BẠN" title={sentEmail ? 'Tạo mật khẩu mới.' : 'Tìm lại quyền truy cập.'} icon={sentEmail ? 'key' : 'mail'}
+            description={sentEmail ? 'Nhập mã trong email mới nhất và tạo mật khẩu mới.' : 'Một mã xác nhận sẽ được gửi đến email đã đăng ký.'} />
+          <Steps current={sentEmail ? 1 : 0} labels={['Nhận mã', 'Đặt mật khẩu']} />
+          <Text style={styles.stepSpace} />
+          <Field label="Email" icon="mail" value={email} onChangeText={setEmail}
             placeholder="ban@example.com" keyboardType="email-address"
             maxLength={254} editable={!busy && !sentEmail} />
 
@@ -179,13 +150,13 @@ export default function ForgotPasswordScreen({ navigation, route }) {
 
           {sentEmail ? (
             <>
-              <Field label="Mã xác nhận" value={code}
+              <Field label="Mã xác nhận" icon="hash" value={code}
                 onChangeText={(value) => setCode(value.replace(/\D/g, '').slice(0, 6))}
                 placeholder="6 chữ số" keyboardType="number-pad"
                 maxLength={6} editable={!busy} />
-              <Field label="Mật khẩu mới" value={password} onChangeText={setPassword}
+              <Field label="Mật khẩu mới" icon="lock" value={password} onChangeText={setPassword}
                 placeholder="Ít nhất 8 ký tự" secureTextEntry editable={!busy} />
-              <Field label="Nhập lại mật khẩu mới" value={confirmPassword}
+              <Field label="Nhập lại mật khẩu mới" icon="lock" value={confirmPassword}
                 onChangeText={setConfirmPassword} placeholder="Nhập lại mật khẩu"
                 secureTextEntry editable={!busy} />
               <Text style={styles.hint}>
@@ -212,24 +183,7 @@ export default function ForgotPasswordScreen({ navigation, route }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F4F7FB' },
-  content: { padding: 24, paddingBottom: 40 },
-  title: { fontSize: 28, fontWeight: '700', color: '#172033', marginBottom: 10 },
-  subtitle: { fontSize: 15, lineHeight: 23, color: '#596579', marginBottom: 24 },
-  label: { fontSize: 14, fontWeight: '600', color: '#172033', marginBottom: 8 },
-  input: {
-    backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#CBD5E1',
-    borderRadius: 12, paddingHorizontal: 16, paddingVertical: 14,
-    fontSize: 16, color: '#172033', marginBottom: 18,
-  },
-  notice: {
-    backgroundColor: '#DBEAFE', color: '#1E40AF', padding: 14,
-    borderRadius: 12, lineHeight: 22, marginBottom: 20,
-  },
-  hint: { color: '#596579', lineHeight: 22, marginBottom: 16 },
-  button: { backgroundColor: '#1D4ED8', borderRadius: 12, padding: 16, alignItems: 'center' },
-  buttonText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
-  linkButton: { paddingVertical: 14, alignItems: 'center' },
-  link: { color: '#1D4ED8', fontSize: 14, fontWeight: '600' },
-  dimmed: { opacity: 0.5 },
+  container: ui.screen, content: { padding: 22, paddingBottom: 36 }, stepSpace: { height: 24 },
+  notice: { backgroundColor: colors.soft, color: colors.primary, padding: 15, borderRadius: 16, fontSize: 13, lineHeight: 22, marginBottom: 20 },
+  hint: { ...ui.caption, marginBottom: 12 },
 });

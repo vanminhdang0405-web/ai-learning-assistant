@@ -4,6 +4,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import SummaryScopePicker from './SummaryScopePicker';
 import SummarySavedList from './SummarySavedList';
 import { getDocumentSummary, summarizeDocument } from '../services/documents';
+import { showAICooldown } from '../utils/aiCooldown';
+import { Badge, Button, Disclosure, Icon, ScreenIntro } from '../components/AppUI';
+import { colors } from '../theme';
 
 const LEVELS = [
   { value: 'short', label: 'Ngắn', hint: 'Đọc nhanh các ý cốt lõi, tối đa 3 ý chính.' },
@@ -101,6 +104,7 @@ export default function DocumentSummaryScreen({ route, navigation }) {
       sourceVersion.current = data.sourceVersion;
     } catch (error) {
       if (!current()) return;
+      if (showAICooldown(error)) return;
       if (!create) {
         setSource(null);
         sourceVersion.current = undefined;
@@ -179,28 +183,22 @@ export default function DocumentSummaryScreen({ route, navigation }) {
   return (
     <SafeAreaView style={styles.container} edges={['left', 'right', 'bottom']}>
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <Text style={styles.title}>{documentName}</Text>
-        <Text style={styles.description}>
-          Khi bấm tạo tóm tắt, phần chữ trong phạm vi đã chọn sẽ được gửi tới Google Gemini.
-          Hãy dùng tài liệu học tập không chứa thông tin cá nhân. Mở bản đã lưu không gọi AI.
-        </Text>
-
-        <SummarySavedList key={`saved-${documentId}`} items={savedSummaries} disabled={disabled} onOpen={openSaved} />
+        <ScreenIntro eyebrow="NẮM Ý CHÍNH" title="Hiểu bài, gọn hơn." description={documentName} icon="zap" />
         <SummaryScopePicker key={documentId} scope={scope} sections={sections} savedRanges={savedRanges}
           documentSource={documentSource} truncated={truncated} disabled={disabled} onSelect={selectScope} />
-        <Text style={styles.levelHeading}>Mức độ tóm tắt</Text>
+        <Text style={styles.levelHeading}>Bạn muốn đọc ở mức nào?</Text>
         <View style={styles.levelRow} accessibilityRole="radiogroup">
           {LEVELS.map(option => (
             <Pressable key={option.value} accessibilityRole="radio"
               accessibilityState={{ checked: level === option.value, disabled }}
               disabled={disabled} onPress={() => selectLevel(option.value)}
               style={[styles.levelButton, level === option.value && styles.levelSelected, disabled && styles.disabled]}>
-              <Text style={[styles.levelText, level === option.value && styles.levelTextSelected]}>{option.label}</Text>
+              <Icon name={option.value === 'short' ? 'minimize-2' : option.value === 'medium' ? 'align-left' : 'list'} size={18} color={level === option.value ? '#FFFFFF' : colors.primary} /><Text style={[styles.levelText, level === option.value && styles.levelTextSelected]}>{option.label}</Text>
             </Pressable>
           ))}
         </View>
         <Text style={styles.description}>{selected.hint}</Text>
-        <Text style={styles.meta}>Mỗi phạm vi và mức độ được lưu riêng. Đổi lựa chọn chỉ tải bản đã lưu; bấm tạo mới sử dụng AI.</Text>
+
 
         {source && (
           <Text style={styles.meta}>
@@ -227,23 +225,18 @@ export default function DocumentSummaryScreen({ route, navigation }) {
         {source?.sourceUnit === 'part' && <Text style={styles.meta}>DOCX/TXT được đọc thành phần văn bản; tham chiếu không phải số trang trong file gốc.</Text>}
         {summary?.stale && <Text style={styles.notice}>Văn bản đã thay đổi. Bản tóm tắt dưới đây thuộc phiên bản cũ; hãy tạo lại.</Text>}
 
-        <Pressable accessibilityRole="button" disabled={disabled || !source?.ready}
-          onPress={handleCreate} style={[styles.primary, (disabled || !source?.ready) && styles.disabled]}>
-          {busy === 'generating' && <ActivityIndicator color="#FFFFFF" style={styles.spinner} />}
-          <Text style={styles.primaryText}>
-            {busy === 'generating' ? 'Đang tạo tóm tắt...' : summary ? `Tạo lại · ${selected.label}` : `Tạo tóm tắt · ${selected.label}`}
-          </Text>
-        </Pressable>
-        <Pressable accessibilityRole="button" disabled={disabled} onPress={() => perform(false)} style={styles.secondary}>
-          <Text style={styles.secondaryText}>{busy === 'loading' ? 'Đang tải...' : 'Tải bản đã lưu'}</Text>
-        </Pressable>
+        <Button icon="zap" label={busy === 'generating' ? 'Đang tạo tóm tắt…' : summary ? `Tạo lại · ${selected.label}` : `Tạo tóm tắt · ${selected.label}`}
+          disabled={disabled || !source?.ready} loading={busy === 'generating'} onPress={handleCreate} style={{ marginTop: 18 }} />
+        <Button compact tone="ghost" icon="refresh-cw" label={busy === 'loading' ? 'Đang tải…' : 'Tải bản đã lưu'} disabled={disabled} loading={busy === 'loading'} onPress={() => perform(false)} style={{ marginTop: 10 }} />
         {!!errorMessage && <Text accessibilityRole="alert" style={styles.error}>{errorMessage}</Text>}
         {busy === 'generating' && <Text style={styles.meta}>Có thể mất đến 2 phút. Giữ màn hình này mở trong lúc chờ. Không cần bấm tạo nhiều lần.</Text>}
+
+        <SummarySavedList key={`saved-${documentId}`} items={savedSummaries} disabled={disabled} onOpen={openSaved} />
 
         {content ? (
           <>
             <View style={styles.card}>
-              <Text style={styles.levelBadge}>{summary.scope.label || scope.label} · Mức {selected.label}</Text>
+              <Badge label={`${summary.scope.label || scope.label} · ${selected.label}`} icon="check-circle" />
               <Text style={styles.section}>{content.title}</Text>
               <Text selectable style={styles.body}>{content.overview}</Text>
               <Text style={styles.meta}>Đã tự động lưu: {new Date(summary.createdAt).toLocaleString('vi-VN')}</Text>
@@ -274,37 +267,38 @@ export default function DocumentSummaryScreen({ route, navigation }) {
         ) : !busy && !errorMessage && (
           <Text style={styles.empty}>Chưa có bản tóm tắt mức {selected.label} cho phạm vi này. Chọn phạm vi và mức mong muốn rồi bấm tạo khi đã có đủ văn bản.</Text>
         )}
+        <Disclosure title="Cách tạo và lưu tóm tắt" icon="info"><Text style={styles.description}>Phần chữ trong phạm vi đã chọn sẽ được gửi đến Gemini khi bạn bấm tạo. Mỗi phạm vi và mức độ giữ một bản; tạo lại thành công sẽ thay bản đó. Mở bản đã lưu không gọi AI.</Text></Disclosure>
       </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F4F7FB' },
+  container: { flex: 1, backgroundColor: '#F6F8F2' },
   content: { padding: 20, paddingBottom: 40 },
-  title: { fontSize: 22, fontWeight: '700', color: '#172033', marginBottom: 10 },
-  description: { fontSize: 14, lineHeight: 22, color: '#596579' },
-  levelHeading: { fontSize: 16, fontWeight: '700', color: '#172033', marginTop: 20, marginBottom: 10 },
+  title: { fontSize: 22, fontWeight: '700', color: '#253B31', marginBottom: 10 },
+  description: { fontSize: 14, lineHeight: 22, color: '#66776D' },
+  levelHeading: { fontSize: 16, fontWeight: '700', color: '#253B31', marginTop: 20, marginBottom: 10 },
   levelRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 10 },
-  levelButton: { paddingVertical: 12, paddingHorizontal: 16, borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 10, backgroundColor: '#FFFFFF' },
-  levelSelected: { borderColor: '#0F766E', backgroundColor: '#0F766E' },
-  levelText: { color: '#172033', fontWeight: '600' },
+  levelButton: { minHeight: 62, flex: 1, minWidth: 80, alignItems: 'center', gap: 7, paddingVertical: 12, paddingHorizontal: 10, borderWidth: 1, borderColor: '#DEE6D9', borderRadius: 14, backgroundColor: '#FFFFFF' },
+  levelSelected: { borderColor: '#216647', backgroundColor: '#216647' },
+  levelText: { color: '#253B31', fontWeight: '600' },
   levelTextSelected: { color: '#FFFFFF' },
-  levelBadge: { color: '#0F766E', fontWeight: '700', marginBottom: 8 },
-  meta: { fontSize: 12, lineHeight: 20, color: '#596579', marginTop: 10, marginBottom: 10 },
-  notice: { fontSize: 14, lineHeight: 22, color: '#854D0E', marginTop: 12 },
-  primary: { backgroundColor: '#0F766E', borderRadius: 12, padding: 15, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', marginTop: 16 },
+  levelBadge: { color: '#216647', fontWeight: '700', marginBottom: 8 },
+  meta: { fontSize: 12, lineHeight: 20, color: '#66776D', marginTop: 10, marginBottom: 10 },
+  notice: { fontSize: 14, lineHeight: 22, color: '#92530F', marginTop: 12 },
+  primary: { backgroundColor: '#216647', borderRadius: 18, padding: 15, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', marginTop: 16 },
   primaryText: { fontSize: 16, color: '#FFFFFF', fontWeight: '700' },
   spinner: { marginRight: 8 },
   disabled: { opacity: 0.5 },
   secondary: { alignItems: 'center', paddingVertical: 15 },
-  secondaryText: { color: '#2563EB', fontWeight: '600' },
-  error: { color: '#B91C1C', fontSize: 14, lineHeight: 22, marginBottom: 16 },
-  card: { backgroundColor: '#FFFFFF', borderColor: '#E2E8F0', borderWidth: 1, borderRadius: 12, padding: 16, marginTop: 14 },
-  section: { fontSize: 18, fontWeight: '700', color: '#0F766E', marginBottom: 10 },
+  secondaryText: { color: '#216647', fontWeight: '600' },
+  error: { color: '#B33B3B', fontSize: 14, lineHeight: 22, marginBottom: 16 },
+  card: { backgroundColor: '#FFFFFF', borderColor: '#DEE6D9', borderWidth: 1, borderRadius: 18, padding: 20, marginTop: 18 },
+  section: { marginTop: 12, fontSize: 18, fontWeight: '700', color: '#216647', marginBottom: 10 },
   item: { marginBottom: 15 },
-  body: { fontSize: 15, lineHeight: 25, color: '#172033' },
-  term: { fontSize: 15, fontWeight: '700', lineHeight: 24, color: '#172033' },
-  reference: { fontSize: 12, lineHeight: 19, color: '#2563EB', marginTop: 6 },
-  empty: { textAlign: 'center', color: '#596579', lineHeight: 23, marginTop: 24 },
+  body: { fontSize: 15, lineHeight: 25, color: '#253B31' },
+  term: { fontSize: 15, fontWeight: '700', lineHeight: 24, color: '#253B31' },
+  reference: { fontSize: 12, lineHeight: 19, color: '#216647', marginTop: 6 },
+  empty: { textAlign: 'center', color: '#66776D', lineHeight: 23, marginTop: 24 },
 });

@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Icon } from '../components/AppUI';
+import { colors } from '../theme';
 
 const LABELS = { short: 'Ngắn', medium: 'Trung bình', detailed: 'Chi tiết' };
 
@@ -10,11 +12,12 @@ export default function SummarySavedList({ items, disabled, onOpen }) {
   const matches = items.filter(item => `${item.scope.label} ${LABELS[item.level]}`
     .toLocaleLowerCase('vi').includes(search.trim().toLocaleLowerCase('vi')));
   return <View style={styles.card}>
-    <Pressable accessibilityRole="button" accessibilityState={{ expanded }} onPress={() => setExpanded(!expanded)}>
-      <Text style={styles.heading}>Bản tóm tắt đã lưu ({items.length}) · {expanded ? 'Thu gọn' : 'Xem danh sách'}</Text>
+    <Pressable accessibilityRole="button" accessibilityLabel="Bản tóm tắt đã lưu" accessibilityState={{ expanded }} onPress={() => setExpanded(!expanded)} style={styles.headerRow}>
+      <Icon name="bookmark" size={18} /><Text style={styles.heading}>Bản đã lưu · {items.length}</Text><Icon name={expanded ? 'chevron-up' : 'chevron-down'} size={18} />
     </Pressable>
-    <Text style={styles.meta}>Tạo thành công sẽ tự lưu. Mở bản đã lưu không gọi AI.</Text>
+
     {expanded && <>
+      <Text style={styles.meta}>Tạo thành công sẽ tự lưu. Mở bản đã lưu không gọi AI.</Text>
       {!!items.length && <TextInput accessibilityLabel="Tìm bản tóm tắt đã lưu" placeholder="Tìm chương/phạm vi hoặc mức độ"
         style={styles.input} value={search} onChangeText={value => { setSearch(value); setLimit(15); }} />}
       {matches.slice(0, limit).map(item => <Pressable key={`${item.scope.key}/${item.level}`} accessibilityRole="button"
@@ -34,12 +37,13 @@ export default function SummarySavedList({ items, disabled, onOpen }) {
 }
 
 const styles = StyleSheet.create({
-  card: { padding: 16, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 12, marginTop: 16 },
-  heading: { color: '#0F766E', fontSize: 16, lineHeight: 24, fontWeight: '700' },
-  meta: { color: '#596579', fontSize: 12, lineHeight: 20, marginTop: 5 },
-  label: { color: '#172033', fontSize: 14, lineHeight: 22, fontWeight: '600' },
-  input: { padding: 12, borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 8, marginTop: 10, color: '#172033', minHeight: 48 },
-  item: { paddingVertical: 13, borderBottomWidth: 1, borderBottomColor: '#E2E8F0' },
-  notice: { color: '#854D0E', fontSize: 12, lineHeight: 20 },
+  headerRow: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 30 },
+  card: { padding: 16, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#DEE6D9', borderRadius: 18, marginTop: 16 },
+  heading: { flex: 1, color: '#216647', fontSize: 14, lineHeight: 24, fontWeight: '700' },
+  meta: { color: '#66776D', fontSize: 12, lineHeight: 20, marginTop: 5 },
+  label: { color: '#253B31', fontSize: 14, lineHeight: 22, fontWeight: '600' },
+  input: { padding: 12, borderWidth: 1, borderColor: '#DEE6D9', borderRadius: 8, marginTop: 10, color: '#253B31', minHeight: 48 },
+  item: { paddingVertical: 13, borderBottomWidth: 1, borderBottomColor: '#DEE6D9' },
+  notice: { color: '#92530F', fontSize: 12, lineHeight: 20 },
   disabled: { opacity: 0.5 },
 });

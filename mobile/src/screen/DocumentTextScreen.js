@@ -3,6 +3,8 @@ import { Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native
 import { SafeAreaView } from 'react-native-safe-area-context';
 import DocumentQuestionsPanel from './DocumentQuestionsPanel';
 import { getDocumentText, extractDocumentText } from '../services/documents';
+import { Badge, Button, Disclosure, EmptyState, Icon, Notice } from '../components/AppUI';
+import { colors, ui } from '../theme';
 
 export default function DocumentTextScreen({ route, navigation }) {
   const { documentId, documentName } = route.params;
@@ -103,77 +105,37 @@ export default function DocumentTextScreen({ route, navigation }) {
         contentContainerStyle={styles.content}
         ListHeaderComponent={
           <View>
-            <Text style={styles.title}>{documentName}</Text>
-            <Text style={styles.description}>
-              {isPart ? 'DOCX/TXT được lưu thành các phần văn bản, không giữ phân trang của file gốc.' : 'Lấy phần chữ trong PDF và lưu theo trang để chuẩn bị cho tóm tắt, hỏi đáp.'}
-            </Text>
-            <Pressable
-              accessibilityRole="button"
-              disabled={disabled}
-              onPress={handleExtract}
-              style={[styles.primaryButton, disabled && styles.disabled]}
-            >
-              <Text style={styles.primaryText}>
-                {busy === 'extracting' ? 'Đang trích xuất...'
-                  : extraction ? 'Trích xuất lại' : 'Trích xuất văn bản'}
-              </Text>
-            </Pressable>
-            <Pressable
-              accessibilityRole="button"
-              disabled={disabled}
-              onPress={loadSaved}
-              style={styles.refreshButton}
-            >
-              <Text style={styles.refreshText}>
-                {busy === 'loading' ? 'Đang tải bản đã lưu...' : 'Làm mới bản đã lưu'}
-              </Text>
-            </Pressable>
-            <Pressable
-              accessibilityRole="button"
-              disabled={disabled}
-              onPress={() => navigation.navigate('DocumentSummary', { documentId, documentName })}
-              style={[styles.aiButton, disabled && styles.disabled]}
-            >
-              <Text style={styles.primaryText}>Tóm tắt bằng AI</Text>
-            </Pressable>
-            <Pressable accessibilityRole="button" disabled={disabled}
-              onPress={() => setShowQuestions(true)} style={[styles.aiButton, disabled && styles.disabled]}>
-              <Text style={styles.primaryText}>Hỏi đáp với tài liệu</Text>
-            </Pressable>
+            <Text style={styles.eyebrow}>KHÔNG GIAN TÀI LIỆU</Text><Text style={styles.title}>{documentName}</Text>
+            <Text style={styles.description}>Đọc nội dung, nắm ý chính và hỏi sâu hơn.</Text>
+            <View style={styles.tabs}>
+              <View style={[styles.tab, styles.activeTab]}><Icon name="align-left" size={17} /><Text style={styles.activeLabel}>Văn bản</Text></View>
+              <Pressable accessibilityRole="button" accessibilityLabel="Tóm tắt bằng AI" disabled={disabled} onPress={() => navigation.navigate('DocumentSummary', { documentId, documentName })} style={styles.tab}><Icon name="zap" size={17} color={colors.muted} /><Text style={styles.tabLabel}>Tóm tắt</Text></Pressable>
+              <Pressable accessibilityRole="button" accessibilityLabel="Hỏi đáp với tài liệu" disabled={disabled} onPress={() => setShowQuestions(true)} style={styles.tab}><Icon name="message-circle" size={17} color={colors.muted} /><Text style={styles.tabLabel}>Hỏi đáp</Text></Pressable>
+            </View>
+            <View style={styles.readerActions}>
+              <Button compact icon="file-text" label={busy === 'extracting' ? 'Đang trích xuất…' : extraction ? 'Trích xuất lại' : 'Trích xuất văn bản'}
+                tone={extraction ? 'secondary' : 'primary'} disabled={disabled} loading={busy === 'extracting'} onPress={handleExtract} style={{ flex: 1 }} />
+              <Button compact tone="ghost" label="Làm mới" icon="refresh-cw" disabled={disabled} loading={busy === 'loading'} onPress={loadSaved} />
+            </View>
             {!!errorMessage && <Text style={styles.error}>{errorMessage}</Text>}
-            {extraction && (
-              <View style={styles.summary}>
-                <Text style={styles.status}>{statusLabel}</Text>
-                <Text style={styles.description}>
-                  {extraction.pageCount} {isPart ? 'phần văn bản' : 'trang'} · {extraction.charCount.toLocaleString('vi-VN')} ký tự
-                </Text>
-                <Text style={styles.small}>
-                  Đã lưu: {new Date(extraction.extractedAt).toLocaleString('vi-VN')}
-                </Text>
-                {!isPart && extraction.status !== 'ready' && (
-                  <Text style={styles.notice}>
-                    {extraction.status === 'no_text'
-                      ? 'PDF có thể là ảnh scan hoặc không chứa chữ. Nếu trang có chữ dưới dạng ảnh, cần OCR để đọc. Bản này chưa thực hiện OCR.'
-                      : `Trang chưa tìm thấy chữ: ${extraction.pagesWithoutText.join(', ')}. Những trang này có thể trống hoặc chứa ảnh; nếu là ảnh có chữ, cần OCR.`}
-                  </Text>
-                )}
-                <Text style={styles.small}>
-                  Chỉ đọc lớp chữ có sẵn. Chữ nằm trong ảnh chưa được nhận dạng.
-                  Bố cục bảng, công thức hoặc cột có thể khác tài liệu gốc.
-                </Text>
+            {extraction && <>
+              <View style={styles.statusRow}><Badge label={statusLabel} icon={extraction.status === 'ready' ? 'check-circle' : 'info'} tone={extraction.status === 'ready' ? 'green' : 'amber'} />
+                <Text style={styles.small}>{extraction.pageCount} {isPart ? 'phần' : 'trang'} · {extraction.charCount.toLocaleString('vi-VN')} ký tự</Text>
               </View>
-            )}
+              {!isPart && extraction.status !== 'ready' && <Notice tone="warning">{extraction.status === 'no_text'
+                ? 'PDF chưa có lớp chữ để đọc. Với đề bài dạng ảnh, bạn có thể dùng Quét đề bài ở trang chủ.'
+                : `Chưa đọc được chữ ở trang ${extraction.pagesWithoutText.join(', ')}. Kết quả chỉ gồm phần chữ đã nhận được.`}</Notice>}
+              <Disclosure title="Thông tin bản trích xuất" icon="file-text"><Text style={styles.description}>
+                {isPart ? 'DOCX/TXT được lưu thành phần văn bản, không giữ phân trang gốc.' : 'Chỉ đọc lớp chữ có sẵn trong PDF. Chữ nằm trong ảnh chưa được nhận dạng ở màn hình này.'}
+                {'\n'}Bảng, công thức hoặc cột có thể khác bố cục file gốc.
+              </Text><Text style={styles.small}>Đã lưu: {new Date(extraction.extractedAt).toLocaleString('vi-VN')}</Text></Disclosure>
+              <Text style={styles.readingLabel}>NỘI DUNG TÀI LIỆU</Text>
+            </>}
+
           </View>
         }
-        ListEmptyComponent={
-          <Text style={styles.empty}>
-            {busy === 'extracting'
-              ? 'Backend đang đọc tài liệu. Bạn có thể chờ tại màn hình này.'
-              : busy === 'loading' ? ''
-                : errorMessage ? 'Chưa tải được kết quả. Bạn có thể thử lại.'
-                  : 'Tài liệu chưa được trích xuất. Bấm nút phía trên để bắt đầu.'}
-          </Text>
-        }
+        ListEmptyComponent={<EmptyState icon="file-text" title={busy ? 'Đang chuẩn bị nội dung…' : errorMessage ? 'Chưa tải được nội dung' : 'Sẵn sàng đọc bài học?'}
+          description={busy ? 'Vui lòng chờ trong giây lát.' : errorMessage ? 'Bấm Làm mới để thử tải lại.' : 'Bấm Trích xuất văn bản để bắt đầu đọc và sử dụng các chức năng AI.'} />}
         renderItem={({ item }) => (
           <View style={styles.page}>
             <Text style={styles.pageTitle}>{isPart ? 'Phần văn bản' : 'Trang'} {item.pageNumber}</Text>
@@ -188,23 +150,9 @@ export default function DocumentTextScreen({ route, navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F4F7FB' },
-  content: { padding: 20, paddingBottom: 40, flexGrow: 1 },
-  title: { fontSize: 22, fontWeight: '700', color: '#172033', marginBottom: 10 },
-  description: { fontSize: 14, lineHeight: 22, color: '#596579' },
-  primaryButton: { backgroundColor: '#2563EB', borderRadius: 12, padding: 15, alignItems: 'center', marginTop: 18 },
-  aiButton: { backgroundColor: '#0F766E', borderRadius: 12, padding: 15, alignItems: 'center', marginBottom: 18 },
-  primaryText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
-  disabled: { opacity: 0.5 },
-  refreshButton: { paddingVertical: 14, alignItems: 'center' },
-  refreshText: { color: '#2563EB', fontWeight: '600' },
-  error: { color: '#B91C1C', lineHeight: 22, marginBottom: 14 },
-  summary: { backgroundColor: '#EAF1FF', borderRadius: 12, padding: 16, marginBottom: 18 },
-  status: { color: '#1D4ED8', fontSize: 16, fontWeight: '700', marginBottom: 8 },
-  small: { fontSize: 12, lineHeight: 19, color: '#596579', marginTop: 8 },
-  notice: { color: '#854D0E', fontSize: 14, lineHeight: 22, marginTop: 10 },
-  empty: { textAlign: 'center', color: '#596579', lineHeight: 23, marginTop: 24 },
-  page: { backgroundColor: '#FFFFFF', borderRadius: 12, borderWidth: 1, borderColor: '#E2E8F0', padding: 16, marginBottom: 16 },
-  pageTitle: { fontSize: 16, fontWeight: '700', color: '#2563EB', marginBottom: 12 },
-  pageText: { fontSize: 15, lineHeight: 24, color: '#172033' },
+  container: ui.screen, content: { padding: 20, paddingBottom: 40, flexGrow: 1 }, eyebrow: { color: colors.primary, fontSize: 10, letterSpacing: 1.6, fontWeight: '700', marginBottom: 10 },
+  title: { ...ui.title, fontSize: 23, lineHeight: 31, marginBottom: 8 }, description: ui.caption, tabs: { flexDirection: 'row', padding: 5, borderRadius: 16, backgroundColor: '#E9EEE3', marginVertical: 22, gap: 3 },
+  tab: { flex: 1, minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 12, paddingVertical: 8 }, activeTab: { backgroundColor: colors.surface }, activeLabel: { color: colors.primary, fontSize: 12, fontWeight: '700' }, tabLabel: { color: colors.muted, fontSize: 12, fontWeight: '600' }, readerActions: { flexDirection: 'row', gap: 8, marginBottom: 10 },
+  error: { color: colors.danger, lineHeight: 22, marginVertical: 12 }, statusRow: { gap: 7, marginTop: 12 }, small: { ...ui.caption, fontSize: 11, marginTop: 4 }, readingLabel: { color: colors.muted, fontSize: 10, letterSpacing: 1.5, fontWeight: '700', marginTop: 26, marginBottom: 14 },
+  page: { ...ui.card, padding: 22, marginBottom: 16 }, pageTitle: { color: colors.primary, fontSize: 11, fontWeight: '700', letterSpacing: 1, marginBottom: 18 }, pageText: { color: colors.text, fontSize: 16, lineHeight: 28 },
 });

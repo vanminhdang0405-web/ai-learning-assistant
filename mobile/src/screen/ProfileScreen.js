@@ -8,11 +8,13 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useHeaderHeight } from '@react-navigation/elements';
 import { getCurrentUser, updateProfile } from '../services/auth';
+import { Badge, Button, Field, Icon, ScreenIntro } from '../components/AppUI';
+import { colors, ui } from '../theme';
 
 export default function ProfileScreen({ navigation }) {
   const headerHeight = useHeaderHeight();
@@ -126,7 +128,7 @@ export default function ProfileScreen({ navigation }) {
   if (loading) {
     return (
       <SafeAreaView style={styles.center} edges={['bottom']}>
-        <ActivityIndicator size="large" color="#2563EB" />
+        <ActivityIndicator size="large" color={colors.primary} />
         <Text style={styles.statusText}>Đang tải hồ sơ...</Text>
       </SafeAreaView>
     );
@@ -163,37 +165,15 @@ export default function ProfileScreen({ navigation }) {
           contentContainerStyle={styles.content}
           keyboardShouldPersistTaps="handled"
         >
-          <Text style={styles.title}>Hồ sơ của tôi</Text>
-          <Text style={styles.subtitle}>
-            Xem thông tin tài khoản và cập nhật tên của bạn.
-          </Text>
-
-          <Text style={styles.label}>Email</Text>
-          <Text style={styles.email}>{user.email}</Text>
-
-          <Text style={styles.label}>Tên hiển thị</Text>
-          <TextInput
-            style={styles.input}
-            value={name}
-            onChangeText={setName}
-            placeholder="Nhập tên của bạn"
-            maxLength={100}
-            autoCapitalize="words"
-            editable={!saving}
-          />
-
-          <Pressable
-            disabled={saving}
-            onPress={handleSave}
-            style={({ pressed }) => [
-              styles.button,
-              (pressed || saving) && styles.dimmed,
-            ]}
-          >
-            <Text style={styles.buttonText}>
-              {saving ? 'Đang lưu...' : 'Lưu thay đổi'}
-            </Text>
-          </Pressable>
+          <ScreenIntro eyebrow="KHÔNG GIAN CÁ NHÂN" title="Hồ sơ của bạn." description="Một tài khoản cho tài liệu và hành trình học tập." />
+          <View style={styles.profileCard}><View style={styles.avatar}><Text style={styles.initials}>{user.name.trim().split(/\s+/).slice(-2).map(word => word[0]).join('').toUpperCase()}</Text></View>
+            <Text style={styles.userName}>{user.name}</Text><Badge label="Người học" icon="book-open" />
+          </View>
+          <View style={styles.form}><View style={styles.emailRow}><Icon name="mail" size={18} /><View style={styles.flex}><Text style={styles.label}>EMAIL ĐĂNG NHẬP</Text><Text selectable style={styles.email}>{user.email}</Text></View></View>
+            <Field label="Tên hiển thị" icon="user" value={name} onChangeText={setName} placeholder="Nhập tên của bạn" maxLength={100} autoCapitalize="words" editable={!saving} />
+            <Button label={saving ? 'Đang lưu…' : 'Lưu thay đổi'} icon="check" onPress={handleSave} loading={saving} disabled={saving || name.trim() === user.name} />
+          </View>
+          <View style={styles.note}><Icon name="shield" size={18} /><Text style={styles.noteText}>Tài liệu và lịch sử học tập của bạn được lưu theo tài khoản này.</Text></View>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -201,74 +181,8 @@ export default function ProfileScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F4F7FB',
-  },
-  center: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24,
-    backgroundColor: '#F4F7FB',
-  },
-  content: {
-    padding: 24,
-    paddingBottom: 40,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#172033',
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 15,
-    color: '#64748B',
-    lineHeight: 23,
-    marginBottom: 28,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#172033',
-    marginBottom: 8,
-  },
-  email: {
-    fontSize: 16,
-    color: '#475569',
-    marginBottom: 24,
-  },
-  input: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#CBD5E1',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 16,
-    color: '#172033',
-    marginBottom: 24,
-  },
-  button: {
-    backgroundColor: '#2563EB',
-    borderRadius: 12,
-    paddingHorizontal: 24,
-    paddingVertical: 16,
-    alignItems: 'center',
-  },
-  buttonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  dimmed: {
-    opacity: 0.6,
-  },
-  statusText: {
-    fontSize: 15,
-    color: '#64748B',
-    textAlign: 'center',
-    marginVertical: 16,
-  },
+  container: ui.screen, center: { ...ui.screen, alignItems: 'center', justifyContent: 'center', padding: 24 }, content: { padding: 22, paddingBottom: 36 }, flex: { flex: 1 },
+  profileCard: { ...ui.card, alignItems: 'center', padding: 26, backgroundColor: colors.soft, marginBottom: 20 }, avatar: { width: 76, height: 76, borderRadius: 28, backgroundColor: colors.forest, alignItems: 'center', justifyContent: 'center', marginBottom: 14 }, initials: { color: colors.accent, fontWeight: '700', fontSize: 24 }, userName: { ...ui.section, marginBottom: 12, textAlign: 'center' },
+  form: { ...ui.card, padding: 20 }, emailRow: { flexDirection: 'row', gap: 12, alignItems: 'center', paddingBottom: 20, marginBottom: 20, borderBottomWidth: 1, borderBottomColor: colors.border }, label: { color: colors.muted, fontSize: 10, letterSpacing: 1.1, marginBottom: 6 }, email: { color: colors.text, fontSize: 14, lineHeight: 22 },
+  note: { flexDirection: 'row', gap: 10, marginTop: 22, paddingHorizontal: 8 }, noteText: { ...ui.caption, flex: 1, fontSize: 12 }, button: { minHeight: 48, padding: 14, borderRadius: 14, backgroundColor: colors.primary }, buttonText: { color: '#FFFFFF', fontWeight: '700' }, statusText: { ...ui.caption, marginVertical: 16 },
 });

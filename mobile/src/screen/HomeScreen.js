@@ -1,328 +1,123 @@
-import {
-  Alert,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { useEffect, useState } from 'react';
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { getCurrentUser, logoutAccount } from '../services/auth';
-
-// Component dùng chung để hiển thị một mục chức năng.
-function FeatureCard({ number, title, description, onPress }) {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      onPress={onPress}
-      style={({ pressed }) => [
-        styles.card,
-        pressed && styles.cardPressed,
-      ]}
-    >
-      <Text style={styles.cardNumber}>{number}</Text>
-
-      <View style={styles.cardContent}>
-        <Text style={styles.cardTitle}>{title}</Text>
-        <Text style={styles.cardDescription}>{description}</Text>
-      </View>
-
-      <Text style={styles.arrow}>›</Text>
-    </Pressable>
-  );
-}
+import { getDocuments } from '../services/documents';
+import StudyExercisePanel from './StudyExercisePanel';
+import { Badge, Button, Icon, Notice } from '../components/AppUI';
+import { colors, ui } from '../theme';
 
 export default function HomeScreen({ navigation }) {
-  const [user, setUser] = useState(null);
-  const [checkingAccount, setCheckingAccount] = useState(true);
-
+  const [user, setUser] = useState(null), [checkingAccount, setCheckingAccount] = useState(true);
+  const [showExercise, setShowExercise] = useState(false), [documents, setDocuments] = useState(null);
+  const [loadError, setLoadError] = useState('');
   useEffect(() => {
     let active = true;
-
-    async function loadAccount() {
+    async function load() {
       try {
         const account = await getCurrentUser();
-
-        if (active) {
-          setUser(account);
-      }
-      } catch (error) {
-        if (active) {
-          Alert.alert('Chưa tải được tài khoản', error.message);
+        if (!active) return;
+        setUser(account); setCheckingAccount(false);
+        if (account) {
+          try { const items = await getDocuments(); if (active) setDocuments(items); }
+          catch { /* The library screen has its own retry and session handling. */ }
         }
-      } finally {
-        if (active) {
-          setCheckingAccount(false);
-        }
-      }
-    } 
-
-    loadAccount();
-
-    return () => {
-      active = false;
-    };
+      } catch (error) { if (active) setLoadError(error.message); }
+      finally { if (active) setCheckingAccount(false); }
+    }
+    load(); return () => { active = false; };
   }, []);
-
   async function handleLogout() {
-    setCheckingAccount(true);
-
-    try {
-      await logoutAccount();
-
-      navigation.reset({
-        index: 0,
-        routes: [{ name: 'Login' }],
-      });
-    } catch (error) {
-      Alert.alert('Chưa đăng xuất được', error.message);
-    } finally {
-      setCheckingAccount(false);
-    }
-  }
-
-  function openDocuments() {
     if (checkingAccount) return;
-
+    setCheckingAccount(true);
+    try { await logoutAccount(); navigation.reset({ index: 0, routes: [{ name: 'Login' }] }); }
+    catch (error) { Alert.alert('Chưa đăng xuất được', error.message); }
+    finally { setCheckingAccount(false); }
+  }
+  function open(action) {
+    if (checkingAccount) return;
     if (!user) {
-      Alert.alert(
-        'Cần đăng nhập',
-        'Bạn hãy đăng nhập để quản lý tài liệu.',
-        [
-          { text: 'Để sau', style: 'cancel' },
-          {
-            text: 'Đăng nhập',
-            onPress: () => navigation.navigate('Login'),
-          },
-        ]
-      );
-      return;
+      Alert.alert('Bắt đầu cùng tài khoản của bạn', 'Đăng nhập để lưu tài liệu, bài tập và kết quả học tập.', [
+        { text: 'Để sau', style: 'cancel' }, { text: 'Đăng nhập', onPress: () => navigation.navigate('Login') },
+      ]); return;
     }
-
-    navigation.navigate('Documents');
+    action();
   }
-
-  function showFeature(title) {
-    Alert.alert(
-      title,
-      'Bạn đã bấm thành công. Chức năng này sẽ được xây dựng ở bước tiếp theo.'
-    );
-  }
-
-  return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.header}>
-          <Text style={styles.brand}>AI LEARNING ASSISTANT</Text>
-          <Text style={styles.heading}>
-            {user ? `Xin chào, ${user.name}!` : 'Hôm nay bạn muốn học gì?'}
-          </Text>
-          <Text style={styles.subtitle}>
-            Quản lý tài liệu, tìm hiểu kiến thức và luyện giải bài tập.
-          </Text>
-        </View>
-
-        <View style={styles.banner}>
-          <Text style={styles.bannerTitle}>Bắt đầu từ tài liệu của bạn</Text>
-          <Text style={styles.bannerDescription}>
-            Thêm tài liệu để tạo bản tóm tắt và đặt câu hỏi về nội dung bài học.
-          </Text>
-
-          <Pressable
-            accessibilityRole="button"
-            onPress={openDocuments}
-            style={({ pressed }) => [
-              styles.primaryButton,
-              pressed && styles.buttonPressed,
-            ]}
-          >
-            <Text style={styles.primaryButtonText}>+ Thêm tài liệu</Text>
-          </Pressable>
-        </View>
-
-        <Text style={styles.sectionTitle}>Góc học tập</Text>
-
-        <FeatureCard
-          number="01"
-          title="Tài liệu học tập"
-          description="Quản lý tài liệu, tóm tắt và hỏi đáp với AI."
-          onPress={openDocuments}
-        />
-
-        <FeatureCard
-          number="02"
-          title="Quét đề bài"
-          description="Chụp hoặc chọn ảnh đề bài để nhận gợi ý từng bước."
-          onPress={() => showFeature('Quét đề bài')}
-        />
-
-        <FeatureCard
-          number="03"
-          title="Lịch sử học tập"
-          description="Xem lại bản tóm tắt và các cuộc hội thoại đã lưu."
-          onPress={() => showFeature('Lịch sử học tập')}
-        />
-
-        <View>
-          {user && (
-            <Text style={[styles.subtitle, { textAlign: 'center' }]}>
-              {user.email}
-            </Text>
-          )}
-
-          {user && (
-            <Pressable
-              style={styles.accountButton}
-              disabled={checkingAccount}
-              onPress={() => navigation.navigate('Profile')}
-            >
-            <Text style={styles.accountText}>
-                Hồ sơ cá nhân
-            </Text>
-          </Pressable>
-          )}
-
-          <Pressable
-            accessibilityRole="button"
-            disabled={checkingAccount}
-            onPress={
-              user
-                ? handleLogout
-                : () => navigation.navigate('Login')
-            }
-            style={styles.accountButton}
-          >
-            <Text style={styles.accountText}>
-              {checkingAccount
-                ? 'Đang kiểm tra tài khoản...'
-                : user
-                  ? 'Đăng xuất'
-                  : 'Đăng nhập / Đăng ký'}
-            </Text>
-          </Pressable>
-        </View>
-      </ScrollView>
-    </SafeAreaView>
-  );
+  const openDocuments = () => open(() => navigation.navigate('Documents'));
+  const openExercise = () => open(() => setShowExercise(true));
+  const firstName = user?.name?.trim().split(/\s+/).pop();
+  const initials = user?.name?.trim().split(/\s+/).slice(-2).map(word => word[0]).join('').toUpperCase() || 'AI';
+  if (showExercise) return <SafeAreaView style={ui.screen}><StudyExercisePanel onClose={() => setShowExercise(false)} onSessionExpired={() => {
+    setShowExercise(false); setUser(null); setDocuments(null);
+    Alert.alert('Phiên đăng nhập đã hết hạn', 'Bạn hãy đăng nhập lại để tiếp tục.');
+    navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
+  }} /></SafeAreaView>;
+  return <SafeAreaView style={ui.screen}>
+    <ScrollView contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
+      <View style={s.topbar}>
+        <View style={s.brand}><View style={s.logo}><Icon name="book-open" size={21} color="#FFFFFF" /></View><Text style={s.brandText}>AI Learning{ '\n' }Assistant</Text></View>
+        <Pressable accessibilityRole="button" accessibilityLabel={user ? 'Mở hồ sơ cá nhân' : 'Đăng nhập'} disabled={checkingAccount}
+          onPress={() => navigation.navigate(user ? 'Profile' : 'Login')} style={s.avatar}><Text style={s.initials}>{initials}</Text></Pressable>
+      </View>
+      <Text style={s.greeting}>{user ? `Chào ${firstName},` : 'Chào bạn,'}</Text>
+      <Text style={s.subtitle}>Sẵn sàng cho một điều mới hôm nay?</Text>
+      {!!loadError && <Notice tone="error">{loadError}</Notice>}
+      {checkingAccount && <Notice loading>Đang mở không gian học tập của bạn…</Notice>}
+      <View style={s.hero}>
+        <View pointerEvents="none" accessible={false} style={s.orbit} /><View pointerEvents="none" accessible={false} style={s.orbitSmall} />
+        <View style={s.heroTag}><Icon name="sun" size={13} color={colors.accent} /><Text style={s.heroTagText}>HỌC THEO CÁCH CỦA BẠN</Text></View>
+        <Text style={s.heroTitle}>Mỗi ngày,{ '\n' }hiểu thêm một chút.</Text>
+        <Text style={s.heroDescription}>Từ tài liệu đến lời giải,{ '\n' }cùng AI tìm ra cách hiểu của riêng bạn.</Text>
+        <Pressable accessibilityRole="button" accessibilityLabel="Mở tài liệu học tập" disabled={checkingAccount} onPress={openDocuments} style={({ pressed }) => [s.heroButton, pressed && s.pressed]}>
+          <Text style={s.heroButtonText}>Bắt đầu học</Text><Icon name="arrow-up-right" size={19} color={colors.forest} />
+        </Pressable>
+      </View>
+      <View style={s.sectionRow}><Text style={ui.section}>Bạn muốn làm gì?</Text><Text style={s.sectionCaption}>Chọn một cách bắt đầu</Text></View>
+      <View style={s.tiles}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Tài liệu học tập" disabled={checkingAccount} onPress={openDocuments} style={({ pressed }) => [s.tile, pressed && s.pressed]}>
+          <View style={s.tileIcon}><Icon name="layers" size={24} /></View><Text style={s.tileTitle}>Tài liệu</Text>
+          <Text style={s.tileDescription}>Tóm tắt kiến thức{ '\n' }Hỏi đáp cùng AI</Text><View style={s.tileFooter}><Text style={s.tileLink}>Khám phá</Text><Icon name="arrow-right" size={18} /></View>
+        </Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel="Quét đề bài & gợi ý" disabled={checkingAccount} onPress={openExercise} style={({ pressed }) => [s.tile, s.scanTile, pressed && s.pressed]}>
+          <View style={[s.tileIcon, s.scanIcon]}><Icon name="maximize" size={24} color={colors.warning} /></View><Text style={s.tileTitle}>Quét đề bài</Text>
+          <Text style={s.tileDescription}>Chụp ảnh đề bài{ '\n' }Gợi ý từng bước</Text><View style={s.tileFooter}><Text style={s.tileLink}>Thử ngay</Text><Icon name="arrow-right" size={18} /></View>
+        </Pressable>
+      </View>
+      <View style={s.sectionRow}><Text style={ui.section}>Tài liệu gần đây</Text><Pressable accessibilityRole="button" onPress={openDocuments} disabled={checkingAccount} style={s.seeAll}><Text style={s.tileLink}>Xem tất cả</Text></Pressable></View>
+      {documents?.length ? <View style={s.recent}>{documents.slice(0, 3).map((item, index) => <Pressable key={item.id} accessibilityRole="button" accessibilityLabel={`Học tiếp ${item.name}`}
+        disabled={checkingAccount} onPress={() => open(() => navigation.navigate('DocumentText', { documentId: item.id, documentName: item.name, sourceUnit: item.mime_type === 'application/pdf' ? 'page' : 'part' }))}
+        style={({ pressed }) => [s.recentRow, index > 0 && s.recentBorder, pressed && s.pressed]}>
+        <View style={s.fileIcon}><Icon name="file-text" size={21} /></View><View style={s.flex}><Text numberOfLines={2} style={s.fileName}>{item.name}</Text><Text style={s.fileMeta}>{item.topic || 'Chưa phân loại'}</Text></View><Icon name="chevron-right" size={18} color={colors.muted} />
+      </Pressable>)}</View> : <View style={s.libraryEmpty}>
+        <Icon name="folder-plus" size={25} /><View style={s.flex}><Text style={s.fileName}>{documents ? 'Một góc học tập đang chờ bạn' : 'Mang bài học của bạn vào đây'}</Text><Text style={s.fileMeta}>Thêm PDF, DOCX hoặc TXT để bắt đầu.</Text></View>
+        <Pressable accessibilityRole="button" accessibilityLabel="Thêm tài liệu" disabled={checkingAccount} onPress={openDocuments} style={s.smallPlus}><Icon name="plus" /></Pressable>
+      </View>}
+      <View style={s.tip}><Icon name="compass" size={20} /><Text style={s.tipText}>Thử tự trả lời trước, rồi dùng AI để kiểm tra cách hiểu của mình.</Text></View>
+      {user ? <View style={s.account}>
+        <View style={s.accountHeader}><Badge label="Tài khoản của bạn" icon="user" /><Text numberOfLines={1} style={s.accountEmail}>{user.email}</Text></View>
+        <View style={s.accountActions}><Button compact tone="ghost" label="Hồ sơ" icon="user" onPress={() => navigation.navigate('Profile')} disabled={checkingAccount} style={s.flex} />
+          <Button compact tone="ghost" label="Đăng xuất" icon="log-out" disabled={checkingAccount} onPress={() => Alert.alert('Đăng xuất?', 'Bạn có thể đăng nhập lại để tiếp tục học.', [{ text: 'Ở lại', style: 'cancel' }, { text: 'Đăng xuất', onPress: handleLogout }])} style={s.flex} /></View>
+      </View> : <Button label="Đăng nhập để lưu tiến trình" icon="arrow-right" onPress={() => navigation.navigate('Login')} disabled={checkingAccount} />}
+      <Text style={s.footer}>AI LEARNING ASSISTANT · HỌC TỪNG CHÚT MỘT</Text>
+    </ScrollView>
+  </SafeAreaView>;
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F4F7FB',
-  },
-  content: {
-    padding: 24,
-    paddingBottom: 32,
-  },
-  header: {
-    marginTop: 12,
-    marginBottom: 24,
-  },
-  brand: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#2563EB',
-    letterSpacing: 1,
-    marginBottom: 12,
-  },
-  heading: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#172033',
-    marginBottom: 10,
-  },
-  subtitle: {
-    fontSize: 15,
-    lineHeight: 23,
-    color: '#596579',
-  },
-  banner: {
-    backgroundColor: '#1D4ED8',
-    borderRadius: 20,
-    padding: 22,
-    marginBottom: 28,
-  },
-  bannerTitle: {
-    fontSize: 21,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    marginBottom: 10,
-  },
-  bannerDescription: {
-    fontSize: 14,
-    lineHeight: 22,
-    color: '#EFF6FF',
-    marginBottom: 20,
-  },
-  primaryButton: {
-    alignSelf: 'flex-start',
-    backgroundColor: '#FFFFFF',
-    paddingVertical: 13,
-    paddingHorizontal: 18,
-    borderRadius: 12,
-  },
-  buttonPressed: {
-    opacity: 0.8,
-  },
-  primaryButtonText: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#1D4ED8',
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#172033',
-    marginBottom: 14,
-  },
-  card: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    borderRadius: 16,
-    padding: 18,
-    marginBottom: 12,
-  },
-  cardPressed: {
-    backgroundColor: '#EAF1FF',
-  },
-  cardNumber: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#2563EB',
-    marginRight: 16,
-  },
-  cardContent: {
-    flex: 1,
-  },
-  cardTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#172033',
-    marginBottom: 5,
-  },
-  cardDescription: {
-    fontSize: 13,
-    lineHeight: 20,
-    color: '#596579',
-  },
-  arrow: {
-    fontSize: 28,
-    color: '#64748B',
-    marginLeft: 12,
-  },
-  accountButton: {
-    alignItems: 'center',
-    paddingVertical: 16,
-    marginTop: 8,
-  },
-  accountText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#1D4ED8',
-  },
+const s = StyleSheet.create({
+  content: { padding: 22, paddingBottom: 28 }, flex: { flex: 1 }, topbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 5, marginBottom: 26 },
+  brand: { flexDirection: 'row', alignItems: 'center', gap: 10 }, logo: { width: 42, height: 42, borderRadius: 14, backgroundColor: colors.forest, alignItems: 'center', justifyContent: 'center' }, brandText: { color: colors.heading, fontSize: 13, lineHeight: 17, fontWeight: '700' },
+  avatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.soft, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' }, initials: { color: colors.primary, fontSize: 13, fontWeight: '700' },
+  greeting: { ...ui.title, fontSize: 29 }, subtitle: { ...ui.caption, marginTop: 4, marginBottom: 22 },
+  hero: { backgroundColor: colors.forest, borderRadius: 25, padding: 24, overflow: 'hidden' }, heroTag: { flexDirection: 'row', alignItems: 'center', gap: 7 }, heroTagText: { color: colors.accent, fontSize: 9, letterSpacing: 1.3, fontWeight: '700' },
+  heroTitle: { color: '#FFFFFF', fontSize: 29, lineHeight: 38, fontWeight: '700', letterSpacing: -0.7, marginTop: 15 }, heroDescription: { color: '#D1E3D1', fontSize: 12, lineHeight: 21, marginTop: 10 },
+  heroButton: { alignSelf: 'flex-start', minHeight: 44, backgroundColor: colors.accent, borderRadius: 12, flexDirection: 'row', alignItems: 'center', gap: 18, paddingHorizontal: 16, paddingVertical: 12, marginTop: 20 }, heroButtonText: { color: colors.forest, fontWeight: '700', fontSize: 13 },
+  orbit: { position: 'absolute', width: 160, height: 220, borderWidth: 1, borderColor: '#39654A', borderRadius: 100, right: -90, top: 8, transform: [{ rotate: '-25deg' }] }, orbitSmall: { position: 'absolute', width: 110, height: 170, borderWidth: 1, borderColor: '#39654A', borderRadius: 80, right: -65, top: 55, transform: [{ rotate: '-25deg' }] },
+  sectionRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 4, marginTop: 26, marginBottom: 12 }, sectionCaption: { color: colors.muted, fontSize: 11, lineHeight: 18 },
+  tiles: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 }, tile: { flex: 1, minWidth: 135, borderRadius: 21, borderWidth: 1, borderColor: colors.border, backgroundColor: '#FFFFFF', padding: 17 }, scanTile: { backgroundColor: '#FCF9F0', borderColor: '#EAE4D2' },
+  tileIcon: { backgroundColor: colors.soft, width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginBottom: 16 }, scanIcon: { backgroundColor: '#F4EACD' }, tileTitle: { color: colors.heading, fontSize: 18, fontWeight: '700', marginBottom: 7 }, tileDescription: { color: colors.muted, fontSize: 12, lineHeight: 20 },
+  tileFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 20 }, tileLink: { color: colors.primary, fontSize: 12, fontWeight: '700' }, seeAll: { minHeight: 44, justifyContent: 'center', paddingLeft: 12 },
+  recent: { ...ui.card, padding: 4 }, recentRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 13, minHeight: 80 }, recentBorder: { borderTopWidth: 1, borderTopColor: colors.border }, fileIcon: { width: 42, height: 46, borderRadius: 12, backgroundColor: colors.soft, alignItems: 'center', justifyContent: 'center' },
+  fileName: { color: colors.heading, fontSize: 13, lineHeight: 21, fontWeight: '600' }, fileMeta: { color: colors.muted, fontSize: 11, lineHeight: 18, marginTop: 3 }, libraryEmpty: { ...ui.card, flexDirection: 'row', alignItems: 'center', gap: 12 }, smallPlus: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: colors.soft },
+  tip: { flexDirection: 'row', gap: 10, backgroundColor: colors.soft, borderRadius: 16, padding: 16, marginTop: 20, marginBottom: 24 }, tipText: { color: colors.primary, fontSize: 12, lineHeight: 20, flex: 1 },
+  account: { borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 18 }, accountHeader: { gap: 8, marginBottom: 12 }, accountEmail: { color: colors.muted, fontSize: 12 }, accountActions: { flexDirection: 'row', gap: 10 },
+  footer: { color: colors.muted, fontSize: 8, letterSpacing: 1.2, textAlign: 'center', marginTop: 26 }, pressed: { opacity: 0.72 },
 });

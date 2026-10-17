@@ -7,11 +7,13 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useHeaderHeight } from '@react-navigation/elements';
 import { loginAccount, registerAccount } from '../services/auth';
+import { Button, Field, Icon } from '../components/AppUI';
+import { colors, ui } from '../theme';
 
 function AuthForm({ navigation, isRegister }) {
   const headerHeight = useHeaderHeight();
@@ -88,131 +90,32 @@ function AuthForm({ navigation, isRegister }) {
     }
   }
 
-  return (
-    <SafeAreaView
-      style={styles.container}
-      edges={['left', 'right', 'bottom']}
-    >
-      <KeyboardAvoidingView
-        style={styles.container}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={headerHeight}
-      >
-        <ScrollView
-          contentContainerStyle={styles.content}
-          keyboardShouldPersistTaps="handled"
-        >
-          <Text style={styles.title}>{title}</Text>
-
-          <Text style={styles.subtitle}>
-            {isRegister
-              ? 'Tạo tài khoản để quản lý tài liệu và quá trình học tập.'
-              : 'Đăng nhập để tiếp tục học tập cùng AI Learning Assistant.'}
-          </Text>
-
-          {isRegister && (
-            <>
-              <Text style={styles.label}>Họ và tên</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Nhập họ và tên"
-                placeholderTextColor="#64748B"
-                value={name}
-                onChangeText={setName}
-                autoCapitalize="words"
-                accessibilityLabel="Họ và tên"
-              />
-            </>
-          )}
-
-          <Text style={styles.label}>Email</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="ban@example.com"
-            placeholderTextColor="#64748B"
-            value={email}
-            onChangeText={setEmail}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            autoCorrect={false}
-            accessibilityLabel="Email"
-          />
-
-          <Text style={styles.label}>Mật khẩu</Text>
-          <TextInput
-            style={styles.input}
-            placeholder={isRegister ? 'Ít nhất 8 ký tự' : 'Nhập mật khẩu'}
-            placeholderTextColor="#64748B"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-            autoCapitalize="none"
-            autoCorrect={false}
-            accessibilityLabel="Mật khẩu"
-          />
-
-          {isRegister && (
-            <>
-              <Text style={styles.label}>Nhập lại mật khẩu</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Nhập lại mật khẩu"
-                placeholderTextColor="#64748B"
-                value={confirmPassword}
-                onChangeText={setConfirmPassword}
-                secureTextEntry
-                autoCapitalize="none"
-                autoCorrect={false}
-                accessibilityLabel="Nhập lại mật khẩu"
-              />
-            </>
-          )}
-
-          {!isRegister && (
-            <Pressable
-              accessibilityRole="button"
-              disabled={loading}
-              style={styles.linkButton}
-              onPress={() => navigation.navigate('ForgotPassword', {
-                email: email.trim().toLowerCase(),
-              })}
-            >
-              <Text style={styles.link}>Quên mật khẩu?</Text>
-            </Pressable>
-          )}
-
-          <Pressable
-            accessibilityRole="button"
-            disabled={loading}
-            onPress={handleSubmit}
-            style={({ pressed }) => [
-              styles.submitButton,
-              (pressed || loading) && styles.pressed,
-            ]}
-          >
-            <Text style={styles.submitText}>
-              {loading ? 'Đang xử lý...' : title}
-            </Text>
-          </Pressable>
-
-          <Pressable
-            accessibilityRole="button"
-            disabled={loading}
-            style={styles.linkButton}
-            onPress={() =>
-              navigation.replace(isRegister ? 'Login' : 'Register')
-            }
-          >
-            <Text style={styles.link}>
-              {isRegister
-                ? 'Đã có tài khoản? Đăng nhập'
-                : 'Chưa có tài khoản? Đăng ký'}
-            </Text>
-          </Pressable>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
-  );
+  return <SafeAreaView style={styles.container} edges={['left', 'right', 'bottom']}>
+    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={headerHeight}>
+      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+        <View style={styles.welcome}><View style={styles.logo}><Icon name="book-open" size={31} color={colors.primary} /></View>
+          <Text style={styles.eyebrow}>AI LEARNING ASSISTANT</Text>
+          <Text style={styles.title}>{isRegister ? 'Một khởi đầu mới.' : 'Chào mừng trở lại.'}</Text>
+          <Text style={styles.subtitle}>{isRegister ? 'Tạo một góc học tập dành riêng cho bạn.' : 'Tiếp tục hành trình khám phá kiến thức của bạn.'}</Text>
+        </View>
+        <View style={styles.form}>
+          <Text style={styles.formTitle}>{title}</Text>
+          {isRegister && <Field label="Họ và tên" icon="user" value={name} onChangeText={setName} placeholder="Tên của bạn" autoCapitalize="words" maxLength={100} editable={!loading} />}
+          <Field label="Email" icon="mail" value={email} onChangeText={setEmail} placeholder="ban@example.com" keyboardType="email-address" maxLength={254} editable={!loading} />
+          <Field label="Mật khẩu" icon="lock" value={password} onChangeText={setPassword} placeholder={isRegister ? 'Ít nhất 8 ký tự' : 'Nhập mật khẩu'} secureTextEntry editable={!loading} />
+          {isRegister && <Field label="Nhập lại mật khẩu" icon="lock" value={confirmPassword} onChangeText={setConfirmPassword} placeholder="Nhập lại mật khẩu" secureTextEntry editable={!loading} />}
+          {!isRegister && <Pressable accessibilityRole="button" disabled={loading} style={styles.forgot}
+            onPress={() => navigation.navigate('ForgotPassword', { email: email.trim().toLowerCase() })}><Text style={styles.link}>Quên mật khẩu?</Text></Pressable>}
+          <Button label={loading ? 'Đang xử lý…' : title} icon="arrow-right" loading={loading} onPress={handleSubmit} />
+        </View>
+        <View style={styles.switchRow}><Text style={styles.switchText}>{isRegister ? 'Đã có tài khoản?' : 'Chưa có tài khoản?'}</Text>
+          <Pressable accessibilityRole="button" disabled={loading} style={styles.switchButton} onPress={() => navigation.replace(isRegister ? 'Login' : 'Register')}>
+            <Text style={styles.link}>{isRegister ? 'Đăng nhập' : 'Đăng ký ngay'}</Text></Pressable>
+        </View>
+        <View style={styles.footer}><Icon name="shield" size={14} color={colors.muted} /><Text style={styles.footerText}>Tài liệu và lịch sử gắn với tài khoản của bạn.</Text></View>
+      </ScrollView>
+    </KeyboardAvoidingView>
+  </SafeAreaView>;
 }
 
 export function LoginScreen({ navigation }) {
@@ -224,66 +127,11 @@ export function RegisterScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F4F7FB',
-  },
-  content: {
-    padding: 24,
-    paddingBottom: 40,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#172033',
-    marginBottom: 10,
-  },
-  subtitle: {
-    fontSize: 15,
-    lineHeight: 23,
-    color: '#596579',
-    marginBottom: 28,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#172033',
-    marginBottom: 8,
-  },
-  input: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#CBD5E1',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 16,
-    color: '#172033',
-    marginBottom: 18,
-  },
-  submitButton: {
-    backgroundColor: '#1D4ED8',
-    borderRadius: 12,
-    padding: 16,
-    alignItems: 'center',
-    marginTop: 8,
-    marginBottom: 12,
-  },
-  pressed: {
-    opacity: 0.8,
-  },
-  submitText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  linkButton: {
-    paddingVertical: 14,
-    alignItems: 'center',
-  },
-  link: {
-    color: '#1D4ED8',
-    fontSize: 14,
-    fontWeight: '600',
-  },
+  container: ui.screen, content: { padding: 22, paddingBottom: 36, flexGrow: 1 },
+  welcome: { alignItems: 'center', paddingTop: 12, paddingBottom: 26 }, logo: { width: 78, height: 78, borderRadius: 27, backgroundColor: colors.soft, alignItems: 'center', justifyContent: 'center', marginBottom: 20 },
+  eyebrow: { color: colors.primary, fontSize: 10, letterSpacing: 1.8, fontWeight: '700', marginBottom: 10 }, title: { ...ui.title, textAlign: 'center', fontSize: 26 },
+  subtitle: { ...ui.caption, textAlign: 'center', marginTop: 8, maxWidth: 290 }, form: { ...ui.card, padding: 22 }, formTitle: { ...ui.section, marginBottom: 24 },
+  forgot: { alignSelf: 'flex-end', minHeight: 44, justifyContent: 'center', marginTop: -10, marginBottom: 10 }, link: { color: colors.primary, fontSize: 13, fontWeight: '700' },
+  switchRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', alignItems: 'center', gap: 6, marginTop: 16 }, switchText: { ...ui.caption }, switchButton: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 3 },
+  footer: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 7, marginTop: 28 }, footerText: { fontSize: 11, lineHeight: 18, color: colors.muted, flexShrink: 1 },
 });

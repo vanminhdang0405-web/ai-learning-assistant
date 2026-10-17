@@ -207,4 +207,21 @@ db.exec(`
   ON document_conversations(user_id, document_id, updated_at DESC, id);
 `);
 
+// FR-31–45: ảnh không lưu vào DB; chỉ lưu đề đã xác nhận và các lượt hỗ trợ.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS exercise_sessions (
+    id TEXT PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    creation_key TEXT NOT NULL,
+    problem_text TEXT NOT NULL,
+    analysis_json TEXT,
+    turns_json TEXT NOT NULL DEFAULT '[]',
+    revision INTEGER NOT NULL DEFAULT 0 CHECK (revision >= 0 AND revision <= 20),
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    UNIQUE(user_id, creation_key)
+  );
+  CREATE INDEX IF NOT EXISTS idx_exercise_sessions_user ON exercise_sessions(user_id, updated_at DESC);
+`);
+
 module.exports = db;

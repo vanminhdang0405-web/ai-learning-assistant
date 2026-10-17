@@ -21,7 +21,15 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "Cho phép chụp ảnh đề bài để nhận dạng nội dung.",
+          "photosPermission": "Cho phép chọn ảnh đề bài từ thiết bị.",
+          "microphonePermission": false
+        }
+      ]
     ]
   }
 }

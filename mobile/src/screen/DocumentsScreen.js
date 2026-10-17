@@ -13,6 +13,8 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Badge, Button, EmptyState, Icon, Notice, ScreenIntro } from '../components/AppUI';
+import { colors, ui } from '../theme';
 import * as DocumentPicker from 'expo-document-picker';
 import {
   getDocuments,
@@ -31,6 +33,7 @@ function formatSize(bytes) {
 
 export default function DocumentsScreen({ navigation }) {
   const [documents, setDocuments] = useState([]);
+  const [search, setSearch] = useState('');
   const [busy, setBusy] = useState('');
   const [loadError, setLoadError] = useState('');
   const [topicFilter, setTopicFilter] = useState(null);
@@ -104,7 +107,7 @@ export default function DocumentsScreen({ navigation }) {
       const document = await uploadDocument(asset);
       if (mounted.current) {
         setDocuments((current) => [document, ...current]);
-        setTopicFilter(null);
+        setTopicFilter(null); setSearch('');
         Alert.alert('Thành công', 'Đã tải tài liệu lên.');
       }
     } catch (error) {
@@ -193,7 +196,7 @@ export default function DocumentsScreen({ navigation }) {
       setDocuments(current => current.map(item => item.id === updated.id ? updated : item));
       setEditing(null);
       // Tránh tài liệu vừa chuyển nhóm biến mất khỏi danh sách đang xem.
-      setTopicFilter(null);
+      setTopicFilter(null); setSearch('');
     } catch (error) {
       if (!mounted.current) return;
       setEditError(error.message || 'Chưa lưu được. Vui lòng thử lại.');
@@ -206,207 +209,85 @@ export default function DocumentsScreen({ navigation }) {
 
   const topics = [...new Set(documents.map(item => item.topic || '').filter(Boolean))]
     .sort((a, b) => a.localeCompare(b, 'vi'));
-  const visibleDocuments = topicFilter === null ? documents
-    : documents.filter(item => (item.topic || '') === topicFilter);
-
+  const normalize = value => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/gi, 'd').toLowerCase();
+  const query = normalize(search.trim());
+  const visibleDocuments = documents.filter(item => (topicFilter === null || (item.topic || '') === topicFilter)
+    && normalize(`${item.name} ${item.topic || ''}`).includes(query));
   const disabled = busy !== '';
-  return (
-    <SafeAreaView style={styles.container} edges={['left', 'right', 'bottom']}>
-      <View style={styles.header}>
-        <Text style={styles.heading}>Tài liệu của bạn</Text>
-        <Text style={styles.subtitle}>
-          PDF, DOCX, TXT · tối đa 10 MB/file. DOCX/TXT được đọc chữ khi tải lên.
-        </Text>
-        <Pressable
-          accessibilityRole="button"
-          disabled={disabled}
-          onPress={handleUpload}
-          style={[styles.uploadButton, disabled && styles.disabled]}
-        >
-          <Text style={styles.uploadText}>
-            {busy === 'uploading' ? 'Đang chọn / đọc tài liệu...' : '+ Thêm tài liệu'}
-          </Text>
-        </Pressable>
-        <View style={styles.toolbar}>
-          <Text style={styles.subtitle}>{visibleDocuments.length}/{documents.length} tài liệu</Text>
-          <Pressable
-            accessibilityRole="button"
-            disabled={disabled}
-            onPress={loadDocuments}
-          >
-            <Text style={styles.refreshText}>
-              {busy === 'loading' ? 'Đang tải...' : 'Làm mới'}
-            </Text>
-          </Pressable>
+  function study(item) {
+    navigation.navigate('DocumentText', { documentId: item.id, documentName: item.name, sourceUnit: item.mime_type === 'application/pdf' ? 'page' : 'part' });
+  }
+  function more(item) {
+    if (disabled) return;
+    Alert.alert(item.name, 'Quản lý tài liệu', [
+      { text: 'Sửa thông tin', onPress: () => beginEdit(item) },
+      { text: 'Xóa tài liệu', style: 'destructive', onPress: () => confirmDelete(item) },
+      { text: 'Đóng', style: 'cancel' },
+    ]);
+  }
+  return <SafeAreaView style={styles.container} edges={['left', 'right', 'bottom']}>
+    <FlatList data={visibleDocuments} keyExtractor={item => String(item.id)} contentContainerStyle={styles.list}
+      keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} refreshing={busy === 'loading'} onRefresh={loadDocuments}
+      ListHeaderComponent={<View>
+        <ScreenIntro eyebrow="THƯ VIỆN CỦA BẠN" title="Kiến thức, được sắp xếp." description="Tất cả bài học ở một nơi. Chọn tài liệu và bắt đầu khám phá." icon="layers" />
+        <Button icon="plus" label={busy === 'uploading' ? 'Đang thêm tài liệu…' : 'Thêm tài liệu'} onPress={handleUpload} disabled={disabled} loading={busy === 'uploading'} />
+        <Text style={styles.formats}>PDF · DOCX · TXT  /  Tối đa 10 MB</Text>
+        <View style={styles.search}><Icon name="search" size={19} color={colors.muted} /><TextInput accessibilityLabel="Tìm tài liệu" placeholder="Tìm tên tài liệu hoặc môn học…" placeholderTextColor={colors.muted}
+          value={search} onChangeText={setSearch} autoCorrect={false} style={styles.searchInput} />
+          {!!search && <Pressable accessibilityRole="button" accessibilityLabel="Xóa từ khóa tìm kiếm" onPress={() => setSearch('')} style={styles.clear}><Icon name="x" size={18} /></Pressable>}
         </View>
-        {!!loadError && (
-          <Text style={styles.error}>
-            Chưa tải được danh sách. Bấm Làm mới để thử lại.
-          </Text>
-        )}
-        {busy === 'opening' && (
-          <Text style={styles.subtitle}>Đang tải / mở tài liệu...</Text>
-        )}
-        {busy === 'deleting' && (
-          <Text style={styles.subtitle}>Đang xóa tài liệu...</Text>
-        )}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filters}>
-          {[{ value: null, label: 'Tất cả' }, { value: '', label: 'Chưa phân loại' },
-            ...topics.map(topic => ({ value: topic, label: topic }))].map(option => (
-              <Pressable key={option.value === null ? 'all' : `topic:${option.value}`}
-                accessibilityRole="button" accessibilityState={{ selected: topicFilter === option.value }}
-                disabled={disabled} onPress={() => setTopicFilter(option.value)}
-                style={[styles.chip, topicFilter === option.value && styles.chipSelected]}>
-                <Text style={styles.chipText}>{option.label}</Text>
-              </Pressable>
-            ))}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filters}>
+          {[{ value: null, label: 'Tất cả' }, { value: '', label: 'Chưa phân loại' }, ...topics.map(topic => ({ value: topic, label: topic }))].map(option => <Pressable
+            key={option.value === null ? 'all' : `topic:${option.value}`} accessibilityRole="button" accessibilityState={{ selected: topicFilter === option.value }}
+            disabled={disabled} onPress={() => setTopicFilter(option.value)} style={[styles.chip, topicFilter === option.value && styles.chipSelected]}>
+            <Text style={[styles.chipText, topicFilter === option.value && styles.chipTextSelected]}>{option.label}</Text>
+          </Pressable>)}
         </ScrollView>
-      </View>
-      <FlatList
-        data={visibleDocuments}
-        keyExtractor={(item) => String(item.id)}
-        contentContainerStyle={styles.list}
-        refreshing={busy === 'loading'}
-        onRefresh={loadDocuments}
-        ListEmptyComponent={
-          <Text style={styles.empty}>
-            {busy === 'loading'
-              ? 'Đang tải danh sách...'
-              : loadError
-                ? 'Chưa có dữ liệu để hiển thị.'
-                : 'Chưa có tài liệu trong nhóm này. Chọn “Tất cả” hoặc thêm tài liệu mới.'}
-          </Text>
-        }
-        renderItem={({ item }) => (
-          <View style={styles.card}>
-            <Text style={styles.pdfLabel}>{item.name.split('.').pop().toUpperCase()}</Text>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={`Mở ${item.name}`}
-              disabled={disabled}
-              onPress={() => handleOpen(item)}
-              style={[styles.documentInfo, disabled && styles.disabled]}
-            >
-              <Text style={styles.documentName}>{item.name}</Text>
-              <Text style={styles.documentMeta}>
-                {formatSize(item.size_bytes)}{' · '}
-                {new Date(item.created_at).toLocaleDateString('vi-VN')}
-              </Text>
-              <Text style={styles.documentMeta}>Môn/chủ đề: {item.topic || 'Chưa phân loại'}</Text>
-              <Text style={styles.openText}>Mở file gốc ›</Text>
-            </Pressable>
-            <View style={styles.actions}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={`Xem văn bản ${item.name}`}
-              disabled={disabled}
-              onPress={() => navigation.navigate('DocumentText', {
-                documentId: item.id,
-                documentName: item.name,
-                sourceUnit: item.mime_type === 'application/pdf' ? 'page' : 'part',
-              })}
-              style={styles.textButton}
-            >
-              <Text style={styles.textButtonLabel}>Văn bản</Text>
-            </Pressable>
-            <Pressable accessibilityRole="button" accessibilityLabel={`Sửa thông tin ${item.name}`}
-              disabled={disabled} onPress={() => beginEdit(item)} style={styles.textButton}>
-              <Text style={styles.textButtonLabel}>Sửa thông tin</Text>
-            </Pressable>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={`Xóa ${item.name}`}
-              disabled={disabled}
-              onPress={() => confirmDelete(item)}
-              style={styles.deleteButton}
-            >
-              <Text style={styles.deleteText}>Xóa</Text>
-            </Pressable>
-            </View>
-          </View>
-        )}
-      />
-      <Modal visible={!!editing} transparent animationType="fade"
-        onRequestClose={() => { if (!working.current) setEditing(null); }}>
-        <KeyboardAvoidingView style={styles.modalOverlay} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-          <View style={styles.modalCard}>
-            <ScrollView keyboardShouldPersistTaps="handled">
-              <Text style={styles.heading}>Thông tin tài liệu</Text>
-              <Text style={styles.subtitle}>Tên tài liệu (giữ đuôi file)</Text>
-              <TextInput accessibilityLabel="Tên tài liệu" value={editName} onChangeText={setEditName}
-                maxLength={200} editable={!disabled} style={styles.input} autoCapitalize="none" />
-              <Text style={styles.subtitle}>Môn học/chủ đề</Text>
-              <TextInput accessibilityLabel="Môn học hoặc chủ đề" value={editTopic} onChangeText={setEditTopic}
-                maxLength={80} editable={!disabled} style={styles.input} placeholder="Ví dụ: Lập trình di động" />
-              <Text style={styles.subtitle}>Để trống nếu chưa phân loại. Chọn nhóm đã có hoặc nhập nhóm mới.</Text>
-              <View style={styles.suggestions}>
-                {topics.map(topic => <Pressable key={topic} accessibilityRole="button" disabled={disabled}
-                  onPress={() => setEditTopic(topic)} style={styles.chip}>
-                  <Text style={styles.chipText}>{topic}</Text>
-                </Pressable>)}
-              </View>
-              {!!editError && <Text accessibilityRole="alert" style={styles.error}>{editError}</Text>}
-              <View style={styles.actions}>
-                <Pressable accessibilityRole="button" disabled={disabled} onPress={() => setEditing(null)} style={styles.textButton}>
-                  <Text style={styles.textButtonLabel}>Hủy</Text>
-                </Pressable>
-                <Pressable accessibilityRole="button" disabled={disabled} onPress={saveDetails}
-                  style={[styles.saveButton, disabled && styles.disabled]}>
-                  <Text style={styles.uploadText}>{busy === 'saving' ? 'Đang lưu...' : 'Lưu thay đổi'}</Text>
-                </Pressable>
-              </View>
-            </ScrollView>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
-    </SafeAreaView>
-  );
+        <View style={styles.toolbar}><Text style={styles.count}>{visibleDocuments.length} tài liệu{query || topicFilter !== null ? ` / ${documents.length}` : ''}</Text>
+          <Button compact tone="ghost" icon="refresh-cw" label="Làm mới" onPress={loadDocuments} disabled={disabled} loading={busy === 'loading'} />
+        </View>
+        {!!loadError && <Notice tone="error">Chưa tải được danh sách. Bấm Làm mới để thử lại.</Notice>}
+        {busy === 'opening' && <Notice loading>Đang mở file gốc…</Notice>}
+        {busy === 'deleting' && <Notice loading>Đang xóa tài liệu…</Notice>}
+      </View>}
+      ListEmptyComponent={<EmptyState icon={query ? 'search' : 'folder-plus'} title={busy === 'loading' ? 'Đang mở thư viện…' : loadError ? 'Chưa tải được thư viện' : query || topicFilter !== null ? 'Chưa có tài liệu phù hợp' : 'Thêm bài học đầu tiên'}
+        description={loadError ? 'Kiểm tra kết nối rồi thử làm mới.' : query || topicFilter !== null ? 'Thử từ khóa khác hoặc chọn Tất cả.' : 'Tải tài liệu lên để đọc, tóm tắt và hỏi đáp cùng AI.'} />}
+      renderItem={({ item }) => <View style={styles.card}>
+        <View style={styles.documentHeader}><View style={styles.fileIcon}><Icon name="file-text" size={25} /></View>
+          <View style={styles.documentInfo}><Badge label={item.name.split('.').pop().toUpperCase()} />
+            <Text style={styles.documentName} numberOfLines={2}>{item.name}</Text></View>
+          <Pressable accessibilityRole="button" accessibilityLabel={`Tùy chọn ${item.name}`} disabled={disabled} onPress={() => more(item)} style={styles.more}><Icon name="more-horizontal" /></Pressable>
+        </View>
+        <View style={styles.metadata}><Icon name="tag" size={12} color={colors.muted} /><Text style={styles.topic}>{item.topic || 'Chưa phân loại'}</Text></View>
+        <Text style={styles.documentMeta}>{formatSize(item.size_bytes)} · {new Date(item.created_at).toLocaleDateString('vi-VN')}</Text>
+        <View style={styles.actions}><Button compact label="Văn bản & AI" icon="book-open" onPress={() => study(item)} disabled={disabled} style={styles.flex} accessibilityLabel={`Xem văn bản ${item.name}`} />
+          <Button compact label="Mở file" icon="external-link" tone="ghost" onPress={() => handleOpen(item)} disabled={disabled} accessibilityLabel={`Mở ${item.name}`} /></View>
+      </View>} />
+    <Modal visible={!!editing} transparent animationType="slide" onRequestClose={() => { if (!working.current) setEditing(null); }}>
+      <KeyboardAvoidingView style={styles.modalOverlay} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+        <SafeAreaView style={styles.modalCard} edges={['bottom']}>
+          <View style={styles.handle} /><ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.modalContent}>
+            <View style={styles.modalHeader}><Text style={ui.section}>Thông tin tài liệu</Text><Pressable accessibilityRole="button" accessibilityLabel="Đóng chỉnh sửa" disabled={disabled} onPress={() => setEditing(null)} style={styles.more}><Icon name="x" /></Pressable></View>
+            <Text style={styles.label}>Tên tài liệu</Text><TextInput accessibilityLabel="Tên tài liệu" value={editName} onChangeText={setEditName} maxLength={200} editable={!disabled} style={styles.input} autoCapitalize="none" />
+            <Text style={styles.hint}>Giữ nguyên phần đuôi file khi đổi tên.</Text>
+            <Text style={styles.label}>Môn học / chủ đề</Text><TextInput accessibilityLabel="Môn học hoặc chủ đề" value={editTopic} onChangeText={setEditTopic} maxLength={80} editable={!disabled} style={styles.input} placeholder="Ví dụ: Lập trình di động" placeholderTextColor={colors.muted} />
+            <Text style={styles.hint}>Chọn một nhóm có sẵn hoặc nhập nhóm mới.</Text><View style={styles.suggestions}>{topics.map(topic => <Pressable key={topic} accessibilityRole="button" disabled={disabled} onPress={() => setEditTopic(topic)} style={styles.chip}><Text style={styles.chipText}>{topic}</Text></Pressable>)}</View>
+            {!!editError && <Notice tone="error">{editError}</Notice>}
+            <Button icon="check" label={busy === 'saving' ? 'Đang lưu…' : 'Lưu thay đổi'} onPress={saveDetails} disabled={disabled} loading={busy === 'saving'} />
+          </ScrollView>
+        </SafeAreaView>
+      </KeyboardAvoidingView>
+    </Modal>
+  </SafeAreaView>;
 }
-
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F4F7FB' },
-  header: { padding: 20, paddingBottom: 10 },
-  heading: { fontSize: 24, fontWeight: '700', color: '#172033', marginBottom: 8 },
-  subtitle: { fontSize: 14, lineHeight: 21, color: '#596579' },
-  uploadButton: {
-    backgroundColor: '#2563EB', borderRadius: 12, padding: 15,
-    alignItems: 'center', marginTop: 18,
-  },
-  uploadText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
-  disabled: { opacity: 0.5 },
-  toolbar: {
-    flexDirection: 'row', justifyContent: 'space-between',
-    alignItems: 'center', marginTop: 20,
-  },
-  refreshText: { color: '#2563EB', fontWeight: '600', paddingVertical: 8 },
-  error: { color: '#B91C1C', marginTop: 8 },
-  list: { padding: 20, paddingTop: 8, flexGrow: 1 },
-  empty: { color: '#596579', textAlign: 'center', lineHeight: 23, marginTop: 40 },
-  card: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 14,
-    padding: 14, marginBottom: 12,
-  },
-  pdfLabel: {
-    color: '#1D4ED8', backgroundColor: '#DBEAFE', fontWeight: '700',
-    padding: 8, borderRadius: 8, alignSelf: 'flex-start',
-  },
-  documentInfo: { paddingVertical: 8 },
-  openText: { color: '#2563EB', fontWeight: '600', marginTop: 8 },
-  documentName: { fontSize: 15, fontWeight: '600', color: '#172033' },
-  documentMeta: { fontSize: 12, color: '#64748B', marginTop: 6 },
-  textButton: { paddingVertical: 12, paddingHorizontal: 8 },
-  textButtonLabel: { color: '#2563EB', fontWeight: '600' },
-  deleteButton: { padding: 10, marginLeft: 4 },
-  actions: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between' },
-  filters: { marginTop: 10 },
-  chip: { paddingHorizontal: 12, paddingVertical: 9, borderRadius: 16, backgroundColor: '#E2E8F0', marginRight: 8, marginBottom: 8 },
-  chipSelected: { backgroundColor: '#BFDBFE', borderWidth: 1, borderColor: '#2563EB' },
-  chipText: { color: '#172033', fontSize: 13 },
-  suggestions: { flexDirection: 'row', flexWrap: 'wrap', marginVertical: 12 },
-  modalOverlay: { flex: 1, justifyContent: 'center', backgroundColor: '#00000088', padding: 20 },
-  modalCard: { maxHeight: '90%', backgroundColor: '#FFFFFF', borderRadius: 16, padding: 20 },
-  input: { borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 10, color: '#172033', fontSize: 16, padding: 12, marginVertical: 10 },
-  saveButton: { backgroundColor: '#2563EB', padding: 13, borderRadius: 10 },
-  deleteText: { color: '#DC2626', fontWeight: '600' },
+  container: ui.screen, list: { padding: 20, paddingBottom: 36, flexGrow: 1 }, flex: { flex: 1 }, formats: { ...ui.caption, fontSize: 11, textAlign: 'center', marginVertical: 12 },
+  search: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingLeft: 15, borderRadius: 15, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, minHeight: 52, marginTop: 8 },
+  searchInput: { flex: 1, minWidth: 0, paddingVertical: 14, color: colors.text, fontSize: 14 }, clear: { width: 44, height: 48, alignItems: 'center', justifyContent: 'center' },
+  filters: { gap: 8, paddingTop: 14, paddingBottom: 4 }, chip: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 15, paddingVertical: 10, borderRadius: 13, backgroundColor: colors.soft }, chipSelected: { backgroundColor: colors.forest }, chipText: { color: colors.primary, fontSize: 12, fontWeight: '600' }, chipTextSelected: { color: '#FFFFFF' },
+  toolbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 15, marginBottom: 14 }, count: { color: colors.muted, fontSize: 12, fontWeight: '600' },
+  card: { ...ui.card, marginBottom: 14 }, documentHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 }, fileIcon: { width: 50, height: 60, backgroundColor: colors.soft, borderRadius: 14, alignItems: 'center', justifyContent: 'center' }, documentInfo: { flex: 1, gap: 8 }, more: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  documentName: { color: colors.heading, fontSize: 15, lineHeight: 22, fontWeight: '700' }, metadata: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 16 }, topic: { color: colors.muted, fontSize: 12, lineHeight: 18, flexShrink: 1 }, documentMeta: { color: colors.muted, fontSize: 11, marginTop: 6 }, actions: { flexDirection: 'row', gap: 10, marginTop: 18 },
+  modalOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: '#102A2066' }, modalCard: { maxHeight: '90%', backgroundColor: colors.background, borderTopLeftRadius: 28, borderTopRightRadius: 28 }, handle: { width: 36, height: 4, backgroundColor: '#C5D1BF', borderRadius: 3, alignSelf: 'center', marginTop: 12 }, modalContent: { padding: 22, paddingBottom: 24 }, modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
+  label: { color: colors.text, fontSize: 13, fontWeight: '600', marginBottom: 8, marginTop: 14 }, input: { minHeight: 54, borderWidth: 1, borderColor: colors.border, borderRadius: 14, backgroundColor: colors.surface, color: colors.text, fontSize: 15, padding: 14 }, hint: { ...ui.caption, fontSize: 12, marginTop: 6 }, suggestions: { flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginVertical: 18 },
 });

@@ -1,6 +1,7 @@
 const express = require('express');
 const authRoutes = require('./routes/auth');
 const documentsRoutes = require('./routes/documents');
+const exerciseRoutes = require('./routes/exercises');
 
 
 const app = express();
@@ -23,6 +24,7 @@ app.get('/api/health', (req, res) => {
 // Các API tài khoản.
 app.use('/api/auth', authRoutes);
 app.use('/api/documents', documentsRoutes);
+app.use('/api/exercises', exerciseRoutes);
 // Đặt sau các route để xử lý đường dẫn không tồn tại.
 app.use((req, res) => {
   res.status(404).json({
